@@ -32,14 +32,15 @@ Then push to `main` or run the workflow manually. First deploy creates `/opt/xga
 1. hPanel -> **Domains** -> amberxai.com -> **DNS / Nameservers**: add an `A` record, name `xgallery`,
    pointing at the VPS IP, TTL 300.
 2. hPanel -> **VPS** -> your server -> **Firewall**: allow TCP 80 and 443 (and UDP 443 for HTTP/3).
-3. hPanel -> **VPS** -> your server -> **Docker Manager** -> **Create project** -> **Compose file**.
+3. Make the image public so the VPS can pull it without a login: GitHub -> your profile ->
+   **Packages** -> `xtext` -> **Package settings** -> Danger zone -> **Change visibility** -> Public.
+   (The image is built by the workflow on every push; the source repo stays private.)
+4. hPanel -> **VPS** -> your server -> **Docker Manager** -> **Create project** -> **Compose file**.
    Name it `xgallery` and paste the contents of `deploy/hpanel-compose.yml`, then deploy.
-   The repository must be public for this (GitHub -> Settings -> Danger zone -> Change visibility),
-   because the VPS clones it to build the image.
-4. Wait for the build to finish in Docker Manager, then open https://xgallery.amberxai.com.
+5. Open https://xgallery.amberxai.com once Docker Manager shows both containers running.
 
-If you prefer to keep the repository private, use **VPS -> Overview -> Browser terminal** and run
-the Option D commands below, cloning with a GitHub personal access token.
+To update later, re-run the push to GitHub, then in Docker Manager choose the project and **Update**
+(or restart); `pull_policy: always` fetches the newest image.
 
 ## Option C: Hostinger API script (one-shot)
 

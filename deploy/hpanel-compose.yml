@@ -1,13 +1,11 @@
 # Paste this whole file into hPanel -> VPS -> Docker Manager -> Create project -> Compose file.
-# It builds the app straight from the GitHub repository and serves it with automatic HTTPS.
-# The repository must be public for the VPS to fetch it; otherwise use the browser-terminal steps
-# in deploy/README.md.
+# It pulls the image GitHub Actions builds (ghcr.io/mossesx/xtext) and serves it with automatic HTTPS.
+# The GHCR package must be set to public (GitHub -> your profile -> Packages -> xtext -> Package
+# settings -> Change visibility). The source repository can stay private.
 services:
   app:
-    build:
-      context: https://github.com/MossesX/xText.git#ccr-97285d6a-njn2z3
-      dockerfile: Dockerfile
-    image: xgallery-app:latest
+    image: ghcr.io/mossesx/xtext:latest
+    pull_policy: always
     container_name: xgallery-app
     restart: unless-stopped
     expose:
