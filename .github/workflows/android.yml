@@ -6,6 +6,9 @@ on:
   pull_request:
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -25,8 +28,26 @@ jobs:
       - name: Build debug APK
         run: ./gradlew --no-daemon assembleDebug
 
+      - name: Rename APK
+        run: cp app/build/outputs/apk/debug/app-debug.apk xText-debug.apk
+
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: xText-debug
-          path: app/build/outputs/apk/debug/app-debug.apk
+          path: xText-debug.apk
+
+      # Publish every successful push build as a GitHub Release so the APK has a
+      # public download link:
+      #   https://github.com/<owner>/<repo>/releases/latest/download/xText-debug.apk
+      - name: Publish release
+        if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          tag="build-${{ github.run_number }}"
+          gh release create "$tag" xText-debug.apk \
+            --repo "${{ github.repository }}" \
+            --target "${{ github.sha }}" \
+            --title "xText build ${{ github.run_number }}" \
+            --notes "Debug APK built from ${{ github.ref_name }} @ ${{ github.sha }}. Download xText-debug.apk below and install it on your phone (allow installs from unknown sources)."
