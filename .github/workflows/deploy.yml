@@ -8,9 +8,12 @@ on:
 env:
   IMAGE: ghcr.io/mossesx/xtext
   SITE_DOMAIN: xgallery.amberxai.com
+  VPS_HOST: 31.97.13.252
 
 jobs:
-  build:
+  # Publishes the image to GHCR for anyone who wants to pull it (hPanel Docker Manager etc.).
+  # The deploy job below does not depend on it.
+  build-image:
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -33,36 +36,52 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
+  # Copies this checkout to the VPS and builds + starts the stack there.
+  # Repository secrets needed (Settings -> Secrets and variables -> Actions):
+  #   VPS_PASSWORD   root password of the VPS (hPanel -> VPS -> Settings -> Root password)
+  #   or VPS_SSH_KEY a private key whose public half is in the VPS authorized_keys
+  # Optional: VPS_USER (default root)
   deploy:
-    needs: build
     runs-on: ubuntu-latest
-    # Required repository secrets:
-    #   VPS_HOST      public IP or hostname of the Hostinger VPS
-    #   VPS_USER      SSH user (usually root)
-    #   VPS_SSH_KEY   private key whose public half is in the VPS authorized_keys
-    #   GHCR_PULL_TOKEN  a GitHub PAT with read:packages, used by the VPS to pull the private image
+    concurrency: deploy-vps
     steps:
       - uses: actions/checkout@v4
-      - name: Copy compose files to the VPS
+      - name: Copy source to the VPS
         uses: appleboy/scp-action@v0.1.7
         with:
-          host: ${{ secrets.VPS_HOST }}
-          username: ${{ secrets.VPS_USER }}
+          host: ${{ env.VPS_HOST }}
+          username: ${{ secrets.VPS_USER || 'root' }}
+          password: ${{ secrets.VPS_PASSWORD }}
           key: ${{ secrets.VPS_SSH_KEY }}
-          source: "docker-compose.yml,deploy/Caddyfile"
+          source: "."
           target: /opt/xgallery
-      - name: Pull and restart the stack
+          rm: true
+      - name: Build and start the stack on the VPS
         uses: appleboy/ssh-action@v1.0.3
         with:
-          host: ${{ secrets.VPS_HOST }}
-          username: ${{ secrets.VPS_USER }}
+          host: ${{ env.VPS_HOST }}
+          username: ${{ secrets.VPS_USER || 'root' }}
+          password: ${{ secrets.VPS_PASSWORD }}
           key: ${{ secrets.VPS_SSH_KEY }}
+          command_timeout: 20m
           script: |
             set -e
+            if ! command -v docker >/dev/null 2>&1; then
+              curl -fsSL https://get.docker.com | sh
+            fi
             cd /opt/xgallery
-            echo "${{ secrets.GHCR_PULL_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
             export SITE_DOMAIN="${{ env.SITE_DOMAIN }}"
-            docker compose pull app
-            docker compose up -d --remove-orphans
-            docker image prune -f
+            docker compose -f docker-compose.yml -f docker-compose.build.yml up -d --build --remove-orphans
+            docker image prune -f >/dev/null
             docker compose ps
+      - name: Verify the site answers
+        run: |
+          for i in $(seq 1 30); do
+            code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 10 "https://${SITE_DOMAIN}/healthz" || true)
+            echo "attempt $i: HTTPS /healthz -> $code"
+            [ "$code" = "200" ] && exit 0
+            sleep 10
+          done
+          echo "Site not reachable over HTTPS yet. Check that DNS for ${SITE_DOMAIN} points at ${VPS_HOST}."
+          curl -s -o /dev/null -w "direct http://${VPS_HOST}/healthz -> %{http_code}\n" --max-time 10 "http://${VPS_HOST}/healthz" || true
+          exit 1

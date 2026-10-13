@@ -14,18 +14,19 @@ front for automatic HTTPS. Everything lives in `docker-compose.yml`.
 
 ## Option A: GitHub Actions (recommended, continuous)
 
-`.github/workflows/deploy.yml` builds the image, pushes it to `ghcr.io/mossesx/xtext`, then
-SSHes into the VPS and runs `docker compose pull && up -d`. Add these repository secrets
-(GitHub -> Settings -> Secrets and variables -> Actions):
+`.github/workflows/deploy.yml` copies the source to the VPS (31.97.13.252), builds the image
+there and starts the stack, then checks https://xgallery.amberxai.com/healthz. Add one repository
+secret (GitHub -> Settings -> Secrets and variables -> Actions -> New repository secret):
 
 | Secret | Value |
 | --- | --- |
-| `VPS_HOST` | VPS public IP |
-| `VPS_USER` | `root` (or your SSH user) |
-| `VPS_SSH_KEY` | private key; put its public half in the VPS `~/.ssh/authorized_keys` |
-| `GHCR_PULL_TOKEN` | GitHub personal access token with `read:packages`, since the repo (and so the image) is private |
+| `VPS_PASSWORD` | the VPS root password (hPanel -> VPS -> Settings -> Root password) |
 
-Then push to `main` or run the workflow manually. First deploy creates `/opt/xgallery` on the VPS.
+or, instead of a password, `VPS_SSH_KEY` with a private key whose public half is in the VPS
+`authorized_keys`. `VPS_USER` is optional and defaults to `root`.
+
+Then push to `main` or the deploy branch, or run the workflow from the Actions tab.
+The job also publishes `ghcr.io/mossesx/xtext` for use with hPanel's Docker Manager.
 
 ## Option B: hPanel Docker Manager (no command line)
 
