@@ -27,7 +27,21 @@ SSHes into the VPS and runs `docker compose pull && up -d`. Add these repository
 
 Then push to `main` or run the workflow manually. First deploy creates `/opt/xgallery` on the VPS.
 
-## Option B: Hostinger API script (one-shot)
+## Option B: hPanel Docker Manager (no command line)
+
+1. hPanel -> **Domains** -> amberxai.com -> **DNS / Nameservers**: add an `A` record, name `xgallery`,
+   pointing at the VPS IP, TTL 300.
+2. hPanel -> **VPS** -> your server -> **Firewall**: allow TCP 80 and 443 (and UDP 443 for HTTP/3).
+3. hPanel -> **VPS** -> your server -> **Docker Manager** -> **Create project** -> **Compose file**.
+   Name it `xgallery` and paste the contents of `deploy/hpanel-compose.yml`, then deploy.
+   The repository must be public for this (GitHub -> Settings -> Danger zone -> Change visibility),
+   because the VPS clones it to build the image.
+4. Wait for the build to finish in Docker Manager, then open https://xgallery.amberxai.com.
+
+If you prefer to keep the repository private, use **VPS -> Overview -> Browser terminal** and run
+the Option D commands below, cloning with a GitHub personal access token.
+
+## Option C: Hostinger API script (one-shot)
 
 ```bash
 HOSTINGER_API_TOKEN=... ./deploy/hostinger-setup.sh          # single VPS on the account
@@ -37,7 +51,7 @@ HOSTINGER_API_TOKEN=... ./deploy/hostinger-setup.sh 123456   # pick a VPS id
 It upserts the DNS record and creates a Docker Manager project from the compose file. Because
 the image is private on GHCR, the VPS must be logged in first: `ssh root@<ip> docker login ghcr.io`.
 
-## Option C: manual, on the VPS
+## Option D: manual, on the VPS (works with a private repo)
 
 ```bash
 ssh root@<vps-ip>

@@ -1,0 +1,48 @@
+# Paste this whole file into hPanel -> VPS -> Docker Manager -> Create project -> Compose file.
+# It builds the app straight from the GitHub repository and serves it with automatic HTTPS.
+# The repository must be public for the VPS to fetch it; otherwise use the browser-terminal steps
+# in deploy/README.md.
+services:
+  app:
+    build:
+      context: https://github.com/MossesX/xText.git#ccr-97285d6a-njn2z3
+      dockerfile: Dockerfile
+    image: xgallery-app:latest
+    container_name: xgallery-app
+    restart: unless-stopped
+    expose:
+      - "80"
+
+  caddy:
+    image: caddy:2-alpine
+    container_name: xgallery-caddy
+    restart: unless-stopped
+    depends_on:
+      - app
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    configs:
+      - source: caddyfile
+        target: /etc/caddy/Caddyfile
+    volumes:
+      - caddy_data:/data
+      - caddy_config:/config
+
+configs:
+  caddyfile:
+    content: |
+      xgallery.amberxai.com {
+          encode zstd gzip
+          reverse_proxy app:80
+          header {
+              Strict-Transport-Security "max-age=31536000"
+              X-Content-Type-Options "nosniff"
+              Referrer-Policy "strict-origin-when-cross-origin"
+          }
+      }
+
+volumes:
+  caddy_data:
+  caddy_config:
