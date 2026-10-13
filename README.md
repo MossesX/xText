@@ -70,6 +70,11 @@ src/
 Theming works purely through CSS custom properties set on `<html>` (`--c-*`, `--font-*`,
 `--radius`, `--scale`). Any component that uses those variables is automatically themeable.
 
+## Deployment
+
+See [deploy/README.md](deploy/README.md) for the Docker image, the Compose stack with automatic HTTPS,
+and the Hostinger VPS deployment workflow.
+
 ## Storage model
 
 This is a front-end application. All data, including the uploaded media blobs, lives in the

@@ -1,0 +1,7 @@
+# Overlay: build the app image from this checkout instead of pulling it.
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: xgallery-app:local

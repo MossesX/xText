@@ -1,0 +1,34 @@
+# Production stack for xgallery.amberxai.com on a Hostinger VPS.
+#
+#   SITE_DOMAIN=xgallery.amberxai.com docker compose up -d
+#
+# `app` is pulled from GHCR (built by .github/workflows/deploy.yml). To build
+# on the VPS instead:  docker compose -f docker-compose.yml -f docker-compose.build.yml up -d --build
+services:
+  app:
+    image: ghcr.io/mossesx/xtext:latest
+    container_name: xgallery-app
+    restart: unless-stopped
+    expose:
+      - "80"
+
+  caddy:
+    image: caddy:2-alpine
+    container_name: xgallery-caddy
+    restart: unless-stopped
+    depends_on:
+      - app
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    environment:
+      SITE_DOMAIN: ${SITE_DOMAIN:-xgallery.amberxai.com}
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+
+volumes:
+  caddy_data:
+  caddy_config:
