@@ -18,7 +18,8 @@
     <string name="status_no_mic">Microphone permission is missing, so voice replies are off.</string>
     <string name="status_no_recognizer">No speech recognition service is installed on this device.</string>
     <string name="status_no_listener">Notification access is off, so only SMS will be read.</string>
-    <string name="status_missing_permissions">Some permissions are missing. See below.</string>
+    <string name="status_sms_via_notifications">SMS permission is not granted, so texts are read through your messaging app\'s notifications instead. Replies go through the app too.</string>
+    <string name="status_sms_unavailable">SMS permission is not granted. Either grant it below, or turn on notification access so texts are read through your messaging app\'s notifications.</string>
 
     <!-- Notification actions -->
     <string name="action_enable_voice">Enable voice replies</string>
@@ -49,7 +50,7 @@
     <string name="section_log">Activity</string>
 
     <!-- Permissions -->
-    <string name="perm_sms">Receive and send SMS</string>
+    <string name="perm_sms">Receive and send SMS directly (optional with notification access)</string>
     <string name="perm_mic">Microphone (voice replies)</string>
     <string name="perm_contacts">Contacts (say names instead of numbers)</string>
     <string name="perm_notifications">Show notifications</string>
@@ -101,12 +102,15 @@
     <string name="dialog_listener_title">Read WhatsApp, Telegram and RCS too?</string>
     <string name="dialog_listener_text">To read messages from other messaging apps, xText needs notification access. Turn on xText in the next screen.</string>
     <string name="dialog_open_settings">Open settings</string>
+    <string name="dialog_denied_title">Android blocked the permission</string>
+    <string name="dialog_denied_text">Android is no longer showing the permission prompt. You can grant it on the app\'s settings page under Permissions.</string>
+    <string name="dialog_denied_sms_text">Android did not show the SMS prompt. On this phone the SMS permission may only be grantable from the app\'s settings page (Permissions > SMS), and on some installs it cannot be granted at all. In that case turn on notification access instead: xText then reads your texts from the messaging app\'s notifications and replies through it.</string>
+    <string name="dialog_open_app_settings">Open app settings</string>
     <string name="dialog_later">Later</string>
     <string name="toast_start_first">Start xText first.</string>
     <string name="toast_test_started">Listen… a sample message is on its way.</string>
     <string name="toast_saved">Saved.</string>
     <string name="toast_bad_package">Enter a package name such as com.example.app</string>
-    <string name="toast_permissions_needed">xText needs those permissions to work.</string>
     <string name="toast_open_settings_failed">Could not open system settings on this device.</string>
 
     <!-- Spoken text -->

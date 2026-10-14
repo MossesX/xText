@@ -150,14 +150,15 @@ class MainActivity : Activity() {
             mic -> getString(R.string.status_listening)
             else -> getString(R.string.status_standby)
         }
-        val missing = corePermissions().filterNot { granted(it) }
         val extras = buildList {
+            if (!hasSmsPermissions()) {
+                add(getString(if (smsViaNotifications()) R.string.status_sms_via_notifications else R.string.status_sms_unavailable))
+            }
             if (!granted(Manifest.permission.RECORD_AUDIO)) add(getString(R.string.status_no_mic))
             if (!SpeechRecognizer.isRecognitionAvailable(this@MainActivity)) add(getString(R.string.status_no_recognizer))
             if (prefs.readNotifications && !MessageNotificationListener.isEnabled(this@MainActivity)) {
                 add(getString(R.string.status_no_listener))
             }
-            if (missing.isNotEmpty()) add(getString(R.string.status_missing_permissions))
         }
         statusText.text = if (extras.isEmpty()) text else text + "\n\n" + extras.joinToString("\n") { "• $it" }
         engineToggle.text = getString(if (running && prefs.engineRequested) R.string.btn_stop else R.string.btn_start)
@@ -166,7 +167,7 @@ class MainActivity : Activity() {
     private fun renderPermissions() {
         permissionsContainer.removeAllViews()
         val rows = ArrayList<PermissionRow>()
-        rows += PermissionRow(getString(R.string.perm_sms), { granted(Manifest.permission.RECEIVE_SMS) && granted(Manifest.permission.SEND_SMS) }) {
+        rows += PermissionRow(getString(R.string.perm_sms), { hasSmsPermissions() }) {
             requestPermissions(arrayOf(Manifest.permission.RECEIVE_SMS, Manifest.permission.SEND_SMS), REQ_CORE)
         }
         rows += PermissionRow(getString(R.string.perm_mic), { granted(Manifest.permission.RECORD_AUDIO) }) {
@@ -375,24 +376,60 @@ class MainActivity : Activity() {
         renderPermissions()
         if (requestCode == REQ_CORE && pendingStartAfterPermissions) {
             pendingStartAfterPermissions = false
-            val stillMissing = corePermissions().filterNot { granted(it) }
-            if (stillMissing.isEmpty()) startEngine() else toast(R.string.toast_permissions_needed)
+            startEngine()
         } else if (requestCode == REQ_CORE && prefs.engineRequested && XTextService.isRunning) {
             // Microphone granted after the engine started: restart it with microphone access.
             XTextService.start(this, withMic = granted(Manifest.permission.RECORD_AUDIO))
         }
         renderStatus()
+        explainBlockedPermissions(permissions, grantResults)
+    }
+
+    /**
+     * Android stops showing the permission dialog after repeated denials, and
+     * never shows it at all for SMS when the installer did not allow-list the
+     * restricted SMS permissions. In both cases the only way forward is the
+     * app's system settings page, so offer to open it.
+     */
+    private fun explainBlockedPermissions(permissions: Array<out String>, grantResults: IntArray) {
+        val blocked = permissions.indices.filter { i ->
+            grantResults.getOrNull(i) == PackageManager.PERMISSION_DENIED && !shouldShowRequestPermissionRationale(permissions[i])
+        }.map { permissions[it] }
+        if (blocked.isEmpty()) return
+        val smsBlocked = blocked.any { it == Manifest.permission.RECEIVE_SMS || it == Manifest.permission.SEND_SMS }
+        AlertDialog.Builder(this)
+            .setTitle(R.string.dialog_denied_title)
+            .setMessage(if (smsBlocked) R.string.dialog_denied_sms_text else R.string.dialog_denied_text)
+            .setPositiveButton(R.string.dialog_open_app_settings) { _, _ -> openAppSettings() }
+            .setNegativeButton(R.string.dialog_later, null)
+            .show()
+    }
+
+    private fun openAppSettings() {
+        val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).setData(Uri.parse("package:$packageName"))
+        runCatching { startActivity(intent) }.onFailure { toast(R.string.toast_open_settings_failed) }
     }
 
     // ---- helpers ---------------------------------------------------------
 
     private class PermissionRow(val label: String, val granted: () -> Boolean, val request: () -> Unit)
 
+    /** Permissions requested when starting; none of them blocks the start. */
     private fun corePermissions(): List<String> = buildList {
         add(Manifest.permission.RECEIVE_SMS)
         add(Manifest.permission.SEND_SMS)
         add(Manifest.permission.RECORD_AUDIO)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) add(Manifest.permission.POST_NOTIFICATIONS)
+    }
+
+    private fun hasSmsPermissions(): Boolean =
+        granted(Manifest.permission.RECEIVE_SMS) && granted(Manifest.permission.SEND_SMS)
+
+    /** Texts can also arrive through the SMS app's notifications when notification access is on. */
+    private fun smsViaNotifications(): Boolean {
+        if (!prefs.readNotifications || !MessageNotificationListener.isEnabled(this)) return false
+        val smsApp = MessageNotificationListener.defaultSmsPackage(this) ?: return false
+        return smsApp in prefs.watchedPackages
     }
 
     private fun granted(permission: String): Boolean =

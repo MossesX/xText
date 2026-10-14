@@ -65,6 +65,15 @@ A GitHub Actions workflow (`.github/workflows/android.yml`) builds the debug APK
 
 Install the APK, open xText, tap **Start xText**, grant the permissions it asks for, and turn on notification access when prompted. Use **Try it with a sample message** to hear the whole flow before a real message arrives.
 
+## If the SMS permission cannot be granted
+
+Android treats SMS permissions as *restricted*. When an APK is sideloaded, some installers do not allow-list them, so the permission prompt never appears and the toggle under *App info > Permissions > SMS* is missing or greyed out. Two ways around it:
+
+1. **Use notification access instead.** Turn on *Notification access* for xText and keep your SMS app (Google Messages, Samsung Messages) ticked under *Messaging apps to read*. Texts are then read from the SMS app's notifications and replies go back through the same app. No SMS permission is needed for this.
+2. **Reinstall with adb**, which allow-lists restricted permissions: `adb install -r xText-debug.apk`.
+
+If the prompt was simply dismissed twice, Android stops showing it; grant the permission under *App info > Permissions* instead. xText opens that page for you when it notices.
+
 ## Permissions and why
 
 | Permission | Used for |
