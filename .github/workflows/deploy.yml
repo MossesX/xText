@@ -71,6 +71,12 @@ jobs:
             fi
             cd /opt/xgallery
             export SITE_DOMAIN="${{ env.SITE_DOMAIN }}"
+            echo "== What is listening on ports 80 and 443 =="
+            (ss -ltnp 2>/dev/null || netstat -ltnp 2>/dev/null) | grep -E ':(80|443)\s' || echo "nothing on 80/443"
+            echo "== Running containers =="
+            docker ps --format 'table {{.Names}}\t{{.Image}}\t{{.Ports}}'
+            echo "== Web server services =="
+            systemctl list-units --type=service --state=running 2>/dev/null | grep -iE 'nginx|apache|httpd|caddy|lite|traefik' || echo "no system web server service running"
             docker compose -f docker-compose.yml -f docker-compose.build.yml up -d --build --remove-orphans
             docker image prune -f >/dev/null
             docker compose ps
