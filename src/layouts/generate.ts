@@ -1,4 +1,4 @@
-import type { CaptionMode, LayoutConfig, LayoutKind, TileShape } from '../db/types'
+import type { CaptionMode, LayoutConfig, LayoutKind, TileShape } from '../api/types'
 
 export const LAYOUT_KINDS: { kind: LayoutKind; label: string; blurb: string }[] = [
   { kind: 'masonry', label: 'Masonry', blurb: 'Pinterest-style columns with natural aspect ratios.' },

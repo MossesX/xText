@@ -1,61 +1,60 @@
 import { useEffect, useState } from 'react'
-import { useLiveQuery } from 'dexie-react-hooks'
+import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { Check, Copy, Dices, Eye, Pencil, Plus, Trash2 } from 'lucide-react'
-import { db } from '../../db/db'
-import { getSiteSettings, updateSiteSettings } from '../../lib/settings'
+import { api } from '../../api/client'
+import { keys, useSaveTheme, useSettings, useThemes, useUpdateSettings } from '../../api/hooks'
+import type { Theme, ThemeDraft } from '../../api/types'
 import { rollTheme } from '../../theme/generate'
 import { Modal } from '../../components/Modal'
-import { ThemeEditor, type ThemeDraft } from '../../components/ThemeEditor'
+import { ThemeEditor } from '../../components/ThemeEditor'
 import { useUI } from '../../store/ui'
-import type { Theme } from '../../db/types'
 
 export function ThemesPage() {
   const notify = useUI((s) => s.notify)
-  const previewThemeId = useUI((s) => s.previewThemeId)
-  const setPreview = useUI((s) => s.setPreviewThemeId)
-  const themes = useLiveQuery(() => db.themes.orderBy('createdAt').toArray(), [])
-  const settings = useLiveQuery(() => getSiteSettings(), [])
+  const setPreview = useUI((s) => s.setPreviewTheme)
+  const qc = useQueryClient()
+  const { data: themes } = useThemes()
+  const { data: site } = useSettings()
+  const save = useSaveTheme()
+  const updateSettings = useUpdateSettings()
   const [editing, setEditing] = useState<{ id?: number; draft: ThemeDraft } | null>(null)
+  const [previewId, setPreviewId] = useState<number | null>(null)
 
   useEffect(() => () => setPreview(null), [setPreview])
 
-  const activate = async (id: number) => {
-    await updateSiteSettings({ activeThemeId: id })
+  const remove = useMutation({
+    mutationFn: (id: number) => api.del(`/api/themes/${id}`),
+    onSuccess: () => qc.invalidateQueries({ queryKey: keys.themes }),
+    onError: (e: Error) => notify(e.message, 'error'),
+  })
+
+  const activate = (id: number) => updateSettings.mutate({ activeThemeId: id }, { onSuccess: () => {
     setPreview(null)
-    notify('Theme activated', 'success')
-  }
+    setPreviewId(null)
+    notify('Theme activated for everyone', 'success')
+  } })
 
-  const roll = async () => {
-    const t = rollTheme()
-    const id = (await db.themes.add({ ...t, createdAt: Date.now() })) as number
-    setPreview(id)
-    notify(`Rolled "${t.name}" — previewing. Activate to keep it.`)
-  }
-
-  const duplicate = async (t: Theme) => {
-    const { id: _id, createdAt: _c, builtIn: _b, ...rest } = t
-    await db.themes.add({ ...rest, name: `${t.name} copy`, createdAt: Date.now() })
-  }
-
-  const remove = async (t: Theme) => {
-    if (settings?.activeThemeId === t.id) {
-      notify('Deactivate this theme before deleting it', 'error')
-      return
+  const startPreview = (t: Theme) => {
+    if (previewId === t.id) {
+      setPreview(null)
+      setPreviewId(null)
+    } else {
+      const { id: _i, createdAt: _c, builtIn: _b, ...draft } = t
+      setPreview(draft)
+      setPreviewId(t.id)
     }
-    if (!confirm(`Delete theme "${t.name}"?`)) return
-    await db.themes.delete(t.id!)
-    if (previewThemeId === t.id) setPreview(null)
   }
 
-  const save = async () => {
-    if (!editing) return
-    if (editing.id != null) await db.themes.update(editing.id, editing.draft)
-    else {
-      const id = (await db.themes.add({ ...editing.draft, createdAt: Date.now() })) as number
-      setPreview(id)
-    }
-    setEditing(null)
-    notify('Theme saved', 'success')
+  const roll = () => {
+    const draft = rollTheme()
+    setPreview(draft)
+    setPreviewId(null)
+    setEditing({ draft })
+  }
+
+  const duplicate = (t: Theme) => {
+    const { id: _i, createdAt: _c, builtIn: _b, ...draft } = t
+    save.mutate({ draft: { ...draft, name: `${t.name} copy` } })
   }
 
   return (
@@ -75,18 +74,18 @@ export function ThemesPage() {
         </div>
       </div>
       <p className="muted">
-        Every theme carries both a light and a dark palette. Members choose light, dark or system on their own device. Hover a theme to preview it; activate to apply it site-wide.
+        Every theme carries a light and a dark palette. Members pick light, dark or system on their own device. Preview applies only to you until you activate.
       </p>
-      {previewThemeId != null && (
+      {previewId != null && (
         <div className="row card" style={{ padding: 12, justifyContent: 'space-between' }}>
-          <span>
-            <Eye size={14} /> Previewing <strong>{themes?.find((t) => t.id === previewThemeId)?.name}</strong>
+          <span className="row" style={{ gap: 8 }}>
+            <Eye size={14} /> Previewing <strong>{themes?.find((t) => t.id === previewId)?.name}</strong>
           </span>
           <div className="row">
-            <button className="btn sm" onClick={() => setPreview(null)}>
+            <button className="btn sm" onClick={() => { setPreview(null); setPreviewId(null) }}>
               Stop preview
             </button>
-            <button className="btn primary sm" onClick={() => activate(previewThemeId)}>
+            <button className="btn primary sm" onClick={() => activate(previewId)}>
               <Check size={14} /> Activate
             </button>
           </div>
@@ -94,7 +93,7 @@ export function ThemesPage() {
       )}
       <div className="theme-grid">
         {themes?.map((t) => {
-          const active = settings?.activeThemeId === t.id
+          const active = site?.settings.activeThemeId === t.id
           return (
             <div key={t.id} className={`card theme-card ${active ? 'active' : ''}`}>
               <div className="theme-swatches">
@@ -107,25 +106,26 @@ export function ThemesPage() {
               </div>
               <div className="body stack" style={{ gap: 8 }}>
                 <div className="row between">
-                  <strong style={{ fontFamily: `'${t.fontDisplay}', serif`, fontSize: '1.15rem' }}>{t.name}</strong>
+                  <strong style={{ fontFamily: `'${t.fontDisplay}', sans-serif`, fontSize: '1.15rem' }}>{t.name}</strong>
                   {active && <span className="badge primary">Active</span>}
+                  {!active && t.builtIn && <span className="badge">AmberX</span>}
                 </div>
                 <div className="muted small">
                   {t.fontDisplay} / {t.fontBody} · radius {t.radius}px
                 </div>
                 <div className="row" style={{ gap: 4 }}>
                   {!active && (
-                    <button className="btn primary sm" onClick={() => activate(t.id!)}>
+                    <button className="btn primary sm" onClick={() => activate(t.id)}>
                       Activate
                     </button>
                   )}
-                  <button className="btn sm" onClick={() => setPreview(previewThemeId === t.id ? null : t.id!)} title="Preview">
+                  <button className={`btn sm ${previewId === t.id ? 'accent' : ''}`} onClick={() => startPreview(t)} title="Preview">
                     <Eye size={14} />
                   </button>
                   <button
                     className="btn sm"
                     onClick={() => {
-                      const { id, createdAt: _c, ...draft } = t
+                      const { id, createdAt: _c, builtIn: _b, ...draft } = t
                       setEditing({ id, draft })
                     }}
                     title="Edit"
@@ -135,7 +135,7 @@ export function ThemesPage() {
                   <button className="btn sm" onClick={() => duplicate(t)} title="Duplicate">
                     <Copy size={14} />
                   </button>
-                  <button className="btn sm danger" onClick={() => remove(t)} title="Delete" disabled={active}>
+                  <button className="btn sm danger" onClick={() => confirm(`Delete theme "${t.name}"?`) && remove.mutate(t.id)} title="Delete" disabled={active}>
                     <Trash2 size={14} />
                   </button>
                 </div>
@@ -145,19 +145,33 @@ export function ThemesPage() {
         })}
       </div>
 
-      <Modal open={!!editing} onClose={() => setEditing(null)} title={editing?.id != null ? 'Edit theme' : 'New theme'} wide>
+      <Modal open={!!editing} onClose={() => { setEditing(null); if (previewId == null) setPreview(null) }} title={editing?.id != null ? 'Edit theme' : 'New theme'} wide>
         {editing && (
           <div className="stack" style={{ gap: 'calc(var(--space) * 3)' }}>
-            <ThemeEditor value={editing.draft} onChange={(draft) => setEditing({ ...editing, draft })} />
+            <ThemeEditor value={editing.draft} onChange={(draft) => { setEditing({ ...editing, draft }); setPreview(draft) }} />
             <div className="row between">
-              <button className="btn accent" onClick={() => setEditing({ ...editing, draft: { ...rollTheme(), name: editing.draft.name } })}>
+              <button className="btn accent" onClick={() => { const d = { ...rollTheme(), name: editing.draft.name }; setEditing({ ...editing, draft: d }); setPreview(d) }}>
                 <Dices size={14} /> Re-roll colours
               </button>
               <div className="row">
-                <button className="btn" onClick={() => setEditing(null)}>
+                <button className="btn" onClick={() => { setEditing(null); setPreview(null); setPreviewId(null) }}>
                   Cancel
                 </button>
-                <button className="btn primary" onClick={save} disabled={!editing.draft.name.trim()}>
+                <button
+                  className="btn primary"
+                  disabled={!editing.draft.name.trim() || save.isPending}
+                  onClick={() =>
+                    save.mutate(editing, {
+                      onSuccess: () => {
+                        setEditing(null)
+                        setPreview(null)
+                        setPreviewId(null)
+                        notify('Theme saved', 'success')
+                      },
+                      onError: (e: Error) => notify(e.message, 'error'),
+                    })
+                  }
+                >
                   Save theme
                 </button>
               </div>

@@ -1,9 +1,8 @@
-import type { Palette, Theme } from '../db/types'
+import type { Palette, ThemeDraft } from '../api/types'
 import { FONT_CHOICES } from '../theme/generate'
 import { paletteToVars } from '../theme/apply'
 import type { CSSProperties } from 'react'
 
-export type ThemeDraft = Omit<Theme, 'id' | 'createdAt'>
 
 const PALETTE_LABELS: Record<keyof Palette, string> = {
   bg: 'Background',
@@ -37,7 +36,7 @@ function PaletteFields({ palette, onChange }: { palette: Palette; onChange: (p: 
 export function ThemePreview({ theme, mode }: { theme: ThemeDraft; mode: 'light' | 'dark' }) {
   const vars = {
     ...paletteToVars(mode === 'dark' ? theme.dark : theme.light),
-    '--font-display': `'${theme.fontDisplay}', serif`,
+    '--font-display': `'${theme.fontDisplay}', 'Sora', sans-serif`,
     '--font-body': `'${theme.fontBody}', sans-serif`,
     '--radius': `${theme.radius}px`,
     '--radius-sm': `${Math.max(2, theme.radius / 2)}px`,

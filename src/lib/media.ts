@@ -1,4 +1,4 @@
-import type { MediaKind } from '../db/types'
+import type { MediaKind } from '../api/types'
 
 const THUMB_MAX = 640
 
@@ -106,7 +106,7 @@ export function formatBytes(n: number): string {
   return `${(n / 1024 ** 3).toFixed(2)} GB`
 }
 
-export function formatDuration(s?: number): string {
+export function formatDuration(s?: number | null): string {
   if (!s || !Number.isFinite(s)) return ''
   const m = Math.floor(s / 60)
   const sec = Math.floor(s % 60)

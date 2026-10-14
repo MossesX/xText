@@ -12,17 +12,9 @@ export function ColorModeToggle({ labels = false }: { labels?: boolean }) {
   const colorMode = useUI((s) => s.colorMode)
   const set = useUI((s) => s.setColorMode)
   return (
-    <div className="segmented" role="radiogroup" aria-label="Color mode">
+    <div className="segmented" role="radiogroup" aria-label="Colour mode">
       {MODES.map(({ mode, icon: Icon, label }) => (
-        <button
-          key={mode}
-          type="button"
-          role="radio"
-          aria-checked={colorMode === mode}
-          className={colorMode === mode ? 'active' : ''}
-          onClick={() => set(mode)}
-          title={label}
-        >
+        <button key={mode} type="button" role="radio" aria-checked={colorMode === mode} className={colorMode === mode ? 'active' : ''} onClick={() => set(mode)} title={label}>
           <Icon size={14} />
           {labels && label}
         </button>

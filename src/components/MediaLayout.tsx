@@ -1,11 +1,8 @@
 import { useRef, type CSSProperties } from 'react'
 import { ChevronLeft, ChevronRight, Heart, Play } from 'lucide-react'
-import { useLiveQuery } from 'dexie-react-hooks'
-import { db } from '../db/db'
-import type { LayoutConfig, MediaItem } from '../db/types'
+import type { LayoutConfig, MediaItem } from '../api/types'
 import { MediaThumb } from './MediaThumb'
 import { formatDuration } from '../lib/media'
-import { useSession } from '../store/session'
 
 interface Props {
   items: MediaItem[]
@@ -23,16 +20,8 @@ interface TileProps {
 }
 
 function Tile({ item, layout, onOpen, index, frameClass = '', frameStyle }: TileProps) {
-  const user = useSession((s) => s.user)
-  const likeCount =
-    useLiveQuery(async () => {
-      if (!layout.showLikes || item.id == null) return 0
-      return db.likes.where('mediaId').equals(item.id).count()
-    }, [item.id, layout.showLikes]) ?? 0
-  const liked = useLiveQuery(async () => {
-    if (!layout.showLikes || item.id == null || user?.id == null) return undefined
-    return db.likes.where('[userId+mediaId]').equals([user.id, item.id]).first()
-  }, [item.id, user?.id, layout.showLikes])
+  const likeCount = item.likes
+  const liked = item.liked
   const cls = ['tile', `shape-${layout.shape}`, layout.rounded ? 'rounded' : '', layout.hoverZoom ? 'zoom' : ''].join(' ')
   const captionInside = layout.caption === 'overlay' || layout.caption === 'hover'
   const hasCaption = item.title || item.description
@@ -77,7 +66,7 @@ export function MediaLayout({ items, layout, onOpen }: Props) {
     return (
       <div className={`media-layout layout-${layout.kind}`} style={style}>
         {items.map((item, i) => {
-          const ratio = item.width / Math.max(1, item.height)
+          const ratio = Math.max(0.3, (item.width || 4) / Math.max(1, item.height || 3))
           const rowHeight = 1400 / Math.max(2, layout.columns)
           const basis = Math.round(ratio * (rowHeight / 4))
           return (

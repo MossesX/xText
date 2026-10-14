@@ -4,7 +4,7 @@ import { Images, LayoutDashboard, Palette, SlidersHorizontal, Users } from 'luci
 const LINKS = [
   { to: '/admin', label: 'Dashboard', icon: LayoutDashboard, end: true },
   { to: '/admin/albums', label: 'Albums', icon: Images },
-  { to: '/admin/users', label: 'Users', icon: Users },
+  { to: '/admin/users', label: 'Members', icon: Users },
   { to: '/admin/themes', label: 'Themes', icon: Palette },
   { to: '/admin/appearance', label: 'Appearance', icon: SlidersHorizontal },
 ]
@@ -23,7 +23,7 @@ export function AdminLayout() {
             </NavLink>
           ))}
         </nav>
-        <div className="grow">
+        <div className="grow" style={{ minWidth: 0 }}>
           <Outlet />
         </div>
       </div>

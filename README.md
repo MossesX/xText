@@ -77,8 +77,14 @@ and the Hostinger VPS deployment workflow.
 
 ## Storage model
 
-This is a front-end application. All data, including the uploaded media blobs, lives in the
-browser's IndexedDB via Dexie, so it works with no backend and no build-time configuration.
-To share galleries between people, point the data layer (`src/db/db.ts` and `src/lib/*`) at an
-API or object store; the UI only consumes the Dexie tables through `useLiveQuery`, so the swap
-is contained to that layer.
+The app ships with its own server (`server/`): Node 24, Express and SQLite through Node's built-in
+`node:sqlite`, with media files stored on disk under `DATA_DIR` (`/data` in the container, a named
+volume in Compose). Accounts, albums, likes, comments, favourites and themes are shared by every
+member. Thumbnails and dimensions are computed in the browser at upload time and stored next to the
+originals, so the server needs no image libraries.
+
+Environment variables: `PORT` (3000), `DATA_DIR`, `CLIENT_DIR`, `ADMIN_PASSWORD` (initial admin
+password on first start, default `admin123`), `MAX_UPLOAD_BYTES` (2 GB).
+
+Local development: `npm run dev` for the client on :5173 (proxying `/api` to :3000) and
+`npm run server` for the API.

@@ -11,6 +11,10 @@ services:
     image: xgallery-app:local
     container_name: xgallery-app
     restart: unless-stopped
+    environment:
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-admin123}
+    volumes:
+      - xgallery_data:/data
     networks:
       - coolify
     labels:
@@ -25,10 +29,13 @@ services:
       traefik.http.routers.xgallery-https.tls.certresolver: letsencrypt
       traefik.http.routers.xgallery-https.service: xgallery
       traefik.http.routers.xgallery-http.service: xgallery
-      traefik.http.services.xgallery.loadbalancer.server.port: "80"
+      traefik.http.services.xgallery.loadbalancer.server.port: "3000"
       traefik.http.middlewares.xgallery-redirect.redirectscheme.scheme: https
       traefik.http.middlewares.xgallery-redirect.redirectscheme.permanent: "true"
 
 networks:
   coolify:
     external: true
+
+volumes:
+  xgallery_data:

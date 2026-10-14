@@ -6,11 +6,15 @@
 # on the VPS instead:  docker compose -f docker-compose.yml -f docker-compose.build.yml up -d --build
 services:
   app:
-    image: ghcr.io/mossesx/xtext:latest
+    image: ghcr.io/mossesx/xgallery:latest
     container_name: xgallery-app
     restart: unless-stopped
+    environment:
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-admin123}
+    volumes:
+      - xgallery_data:/data
     expose:
-      - "80"
+      - "3000"
 
   caddy:
     image: caddy:2-alpine
@@ -30,5 +34,6 @@ services:
       - caddy_config:/config
 
 volumes:
+  xgallery_data:
   caddy_data:
   caddy_config:

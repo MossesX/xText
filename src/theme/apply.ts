@@ -1,4 +1,4 @@
-import type { Palette, Theme } from '../db/types'
+import type { Palette, ThemeDraft } from '../api/types'
 import { withAlpha } from './color'
 
 export type ColorMode = 'light' | 'dark' | 'system'
@@ -36,10 +36,10 @@ export function paletteToVars(p: Palette): Record<string, string> {
   return vars
 }
 
-export function themeToVars(theme: Theme, mode: 'light' | 'dark'): Record<string, string> {
+export function themeToVars(theme: ThemeDraft, mode: 'light' | 'dark'): Record<string, string> {
   return {
     ...paletteToVars(mode === 'dark' ? theme.dark : theme.light),
-    '--font-display': `'${theme.fontDisplay}', serif`,
+    '--font-display': `'${theme.fontDisplay}', 'Sora', sans-serif`,
     '--font-body': `'${theme.fontBody}', system-ui, sans-serif`,
     '--radius': `${theme.radius}px`,
     '--radius-sm': `${Math.max(2, theme.radius / 2)}px`,
@@ -47,7 +47,7 @@ export function themeToVars(theme: Theme, mode: 'light' | 'dark'): Record<string
   }
 }
 
-export function applyTheme(theme: Theme, mode: 'light' | 'dark', el: HTMLElement = document.documentElement): void {
+export function applyTheme(theme: ThemeDraft, mode: 'light' | 'dark', el: HTMLElement = document.documentElement): void {
   const vars = themeToVars(theme, mode)
   for (const [k, v] of Object.entries(vars)) el.style.setProperty(k, v)
   el.dataset.mode = mode

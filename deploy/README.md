@@ -12,6 +12,14 @@ front for automatic HTTPS. Everything lives in `docker-compose.yml`.
    DNS provider.
 3. **Ports 80 and 443 open** on the VPS firewall (hPanel -> VPS -> Firewall).
 
+## Current production setup
+
+The VPS at 31.97.13.252 runs Coolify, whose Traefik proxy owns ports 80 and 443. The gallery is
+deployed with `docker-compose.traefik.yml`: the container joins the `coolify` network and carries
+Traefik labels for `xgallery.amberxai.com`, so Traefik routes the hostname and issues the
+certificate. The deploy workflow picks this automatically when it finds the `coolify` network, and
+falls back to the standalone Caddy stack otherwise.
+
 ## Option A: GitHub Actions (recommended, continuous)
 
 `.github/workflows/deploy.yml` copies the source to the VPS (31.97.13.252), builds the image
@@ -25,8 +33,8 @@ secret (GitHub -> Settings -> Secrets and variables -> Actions -> New repository
 or, instead of a password, `VPS_SSH_KEY` with a private key whose public half is in the VPS
 `authorized_keys`. `VPS_USER` is optional and defaults to `root`.
 
-Then push to `main` or the deploy branch, or run the workflow from the Actions tab.
-The job also publishes `ghcr.io/mossesx/xtext` for use with hPanel's Docker Manager.
+Then push to `main`, or run the workflow from the Actions tab.
+The job also publishes `ghcr.io/mossesx/xgallery` for use with hPanel's Docker Manager.
 
 ## Option B: hPanel Docker Manager (no command line)
 
@@ -34,7 +42,7 @@ The job also publishes `ghcr.io/mossesx/xtext` for use with hPanel's Docker Mana
    pointing at the VPS IP, TTL 300.
 2. hPanel -> **VPS** -> your server -> **Firewall**: allow TCP 80 and 443 (and UDP 443 for HTTP/3).
 3. Make the image public so the VPS can pull it without a login: GitHub -> your profile ->
-   **Packages** -> `xtext` -> **Package settings** -> Danger zone -> **Change visibility** -> Public.
+   **Packages** -> `xgallery` -> **Package settings** -> Danger zone -> **Change visibility** -> Public.
    (The image is built by the workflow on every push; the source repo stays private.)
 4. hPanel -> **VPS** -> your server -> **Docker Manager** -> **Create project** -> **Compose file**.
    Name it `xgallery` and paste the contents of `deploy/hpanel-compose.yml`, then deploy.
@@ -57,7 +65,7 @@ the image is private on GHCR, the VPS must be logged in first: `ssh root@<ip> do
 
 ```bash
 ssh root@<vps-ip>
-git clone https://github.com/MossesX/xText.git /opt/xgallery && cd /opt/xgallery
+git clone https://github.com/MossesX/xGallery.git /opt/xgallery && cd /opt/xgallery
 SITE_DOMAIN=xgallery.amberxai.com docker compose -f docker-compose.yml -f docker-compose.build.yml up -d --build
 ```
 

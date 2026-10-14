@@ -1,74 +1,64 @@
-import { useState, type FormEvent } from 'react'
+import { useEffect, useState, type FormEvent } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { useLiveQuery } from 'dexie-react-hooks'
-import { ArrowDown, ArrowUp, Eye, EyeOff, Plus, Trash2 } from 'lucide-react'
-import { db } from '../../db/db'
-import { slugify } from '../../lib/media'
+import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { Eye, EyeOff, GripVertical, Plus, Star, Trash2 } from 'lucide-react'
+import { api } from '../../api/client'
+import { useAlbums } from '../../api/hooks'
+import type { Album } from '../../api/types'
 import { Modal } from '../../components/Modal'
+import { MediaThumb } from '../../components/MediaThumb'
 import { useUI } from '../../store/ui'
-import type { Album } from '../../db/types'
-
-async function uniqueSlug(base: string): Promise<string> {
-  let slug = slugify(base)
-  let n = 2
-  while (await db.albums.where('slug').equals(slug).first()) slug = `${slugify(base)}-${n++}`
-  return slug
-}
 
 export function AlbumsPage() {
   const navigate = useNavigate()
+  const qc = useQueryClient()
   const notify = useUI((s) => s.notify)
-  const albums = useLiveQuery(() => db.albums.orderBy('sortOrder').toArray(), [])
-  const counts = useLiveQuery(async () => {
-    const map = new Map<number, number>()
-    await db.media.each((m) => map.set(m.albumId, (map.get(m.albumId) ?? 0) + 1))
-    return map
-  }, [])
+  const { data } = useAlbums({ sort: 'manual' })
+  const [list, setList] = useState<Album[]>([])
   const [open, setOpen] = useState(false)
   const [title, setTitle] = useState('')
-
-  const create = async (e: FormEvent) => {
-    e.preventDefault()
-    const now = Date.now()
-    const last = await db.albums.orderBy('sortOrder').last()
-    const id = await db.albums.add({
-      slug: await uniqueSlug(title),
-      title: title.trim(),
-      description: '',
-      visibility: 'draft',
-      tags: [],
-      layoutOverride: null,
-      sortOrder: (last?.sortOrder ?? 0) + 1,
-      createdAt: now,
-      updatedAt: now,
-    })
-    setOpen(false)
-    setTitle('')
-    navigate(`/admin/albums/${id}`)
+  const [dragId, setDragId] = useState<number | null>(null)
+  useEffect(() => setList(data?.albums ?? []), [data])
+  const refresh = () => {
+    qc.invalidateQueries({ queryKey: ['albums'] })
+    qc.invalidateQueries({ queryKey: ['album'] })
   }
 
-  const move = async (album: Album, dir: -1 | 1) => {
-    if (!albums) return
-    const idx = albums.findIndex((a) => a.id === album.id)
-    const other = albums[idx + dir]
-    if (!other) return
-    await db.transaction('rw', db.albums, async () => {
-      await db.albums.update(album.id!, { sortOrder: other.sortOrder })
-      await db.albums.update(other.id!, { sortOrder: album.sortOrder })
-    })
-  }
+  const create = useMutation({
+    mutationFn: () => api.post<{ album: Album }>('/api/albums', { title }),
+    onSuccess: (r) => {
+      refresh()
+      setOpen(false)
+      setTitle('')
+      navigate(`/admin/albums/${r.album.id}`)
+    },
+  })
+  const patch = useMutation({
+    mutationFn: (v: { id: number; patch: Record<string, unknown> }) => api.put(`/api/albums/${v.id}`, v.patch),
+    onSuccess: refresh,
+  })
+  const remove = useMutation({
+    mutationFn: (id: number) => api.del(`/api/albums/${id}`),
+    onSuccess: () => {
+      refresh()
+      notify('Album deleted')
+    },
+  })
+  const reorder = useMutation({
+    mutationFn: (ids: number[]) => api.put('/api/albums/reorder', { ids }),
+    onSuccess: refresh,
+  })
 
-  const remove = async (album: Album) => {
-    if (!confirm(`Delete "${album.title}" and all its media? This cannot be undone.`)) return
-    await db.transaction('rw', db.albums, db.media, db.likes, db.comments, async () => {
-      const mediaIds = (await db.media.where('albumId').equals(album.id!).primaryKeys()).filter((k): k is number => k != null)
-      await db.likes.where('mediaId').anyOf(mediaIds).delete()
-      await db.comments.where('mediaId').anyOf(mediaIds).delete()
-      await db.comments.where('albumId').equals(album.id!).delete()
-      await db.media.bulkDelete(mediaIds)
-      await db.albums.delete(album.id!)
-    })
-    notify('Album deleted')
+  const onDrop = (targetId: number) => {
+    if (dragId == null || dragId === targetId) return
+    const from = list.findIndex((a) => a.id === dragId)
+    const to = list.findIndex((a) => a.id === targetId)
+    const next = [...list]
+    const [moved] = next.splice(from, 1)
+    next.splice(to, 0, moved)
+    setList(next)
+    setDragId(null)
+    reorder.mutate(next.map((a) => a.id))
   }
 
   return (
@@ -82,13 +72,15 @@ export function AlbumsPage() {
           <Plus size={16} /> New album
         </button>
       </div>
-      {albums?.length === 0 ? (
+      <p className="muted small">Drag rows to set the curated order shown on the home page.</p>
+      {list.length === 0 ? (
         <div className="empty">No albums yet. Create one to start uploading.</div>
       ) : (
-        <div className="card" style={{ padding: 0, overflow: 'auto' }}>
+        <div className="card table-card">
           <table className="table">
             <thead>
               <tr>
+                <th style={{ width: 32 }} />
                 <th>Album</th>
                 <th>Items</th>
                 <th>Layout</th>
@@ -97,33 +89,46 @@ export function AlbumsPage() {
               </tr>
             </thead>
             <tbody>
-              {albums?.map((a, i) => (
-                <tr key={a.id}>
-                  <td>
-                    <Link to={`/admin/albums/${a.id}`} style={{ color: 'inherit', fontWeight: 600 }}>
-                      {a.title}
-                    </Link>
-                    <div className="muted small">/album/{a.slug}</div>
+              {list.map((a) => (
+                <tr
+                  key={a.id}
+                  draggable
+                  onDragStart={() => setDragId(a.id)}
+                  onDragOver={(e) => e.preventDefault()}
+                  onDrop={() => onDrop(a.id)}
+                  className={dragId === a.id ? 'dragging' : ''}
+                >
+                  <td className="muted" style={{ cursor: 'grab' }}>
+                    <GripVertical size={16} />
                   </td>
-                  <td>{counts?.get(a.id!) ?? 0}</td>
+                  <td>
+                    <div className="row" style={{ gap: 12 }}>
+                      <div className="mini-cover">{a.cover && <MediaThumb item={a.cover} alt="" />}</div>
+                      <div>
+                        <Link to={`/admin/albums/${a.id}`} style={{ color: 'inherit', fontWeight: 600 }}>
+                          {a.title}
+                        </Link>
+                        <div className="muted small">
+                          /album/{a.slug} {a.featured && <span className="badge accent">Featured</span>}
+                        </div>
+                      </div>
+                    </div>
+                  </td>
+                  <td>
+                    {a.counts.media}
+                    {a.counts.videos > 0 && <span className="muted small"> · {a.counts.videos} video</span>}
+                  </td>
                   <td>{a.layoutOverride ? <span className="badge accent">{a.layoutOverride.kind} (override)</span> : <span className="badge">Default</span>}</td>
                   <td>{a.visibility === 'published' ? <span className="badge success">Published</span> : <span className="badge">Draft</span>}</td>
                   <td>
                     <div className="row" style={{ justifyContent: 'flex-end', gap: 2 }}>
-                      <button className="btn ghost icon sm" title="Move up" disabled={i === 0} onClick={() => move(a, -1)}>
-                        <ArrowUp size={14} />
+                      <button className="btn ghost icon sm" title={a.featured ? 'Unfeature' : 'Feature on home'} onClick={() => patch.mutate({ id: a.id, patch: { featured: !a.featured } })}>
+                        <Star size={14} fill={a.featured ? 'currentColor' : 'none'} />
                       </button>
-                      <button className="btn ghost icon sm" title="Move down" disabled={i === (albums?.length ?? 0) - 1} onClick={() => move(a, 1)}>
-                        <ArrowDown size={14} />
-                      </button>
-                      <button
-                        className="btn ghost icon sm"
-                        title={a.visibility === 'published' ? 'Unpublish' : 'Publish'}
-                        onClick={() => db.albums.update(a.id!, { visibility: a.visibility === 'published' ? 'draft' : 'published', updatedAt: Date.now() })}
-                      >
+                      <button className="btn ghost icon sm" title={a.visibility === 'published' ? 'Unpublish' : 'Publish'} onClick={() => patch.mutate({ id: a.id, patch: { visibility: a.visibility === 'published' ? 'draft' : 'published' } })}>
                         {a.visibility === 'published' ? <EyeOff size={14} /> : <Eye size={14} />}
                       </button>
-                      <button className="btn ghost icon sm danger" title="Delete" onClick={() => remove(a)}>
+                      <button className="btn ghost icon sm danger" title="Delete" onClick={() => confirm(`Delete "${a.title}" and all its media? This cannot be undone.`) && remove.mutate(a.id)}>
                         <Trash2 size={14} />
                       </button>
                     </div>
@@ -135,7 +140,15 @@ export function AlbumsPage() {
         </div>
       )}
       <Modal open={open} onClose={() => setOpen(false)} title="New album">
-        <form className="stack" onSubmit={create} style={{ gap: 'calc(var(--space) * 2)' }}>
+        <form
+          className="stack"
+          onSubmit={(e: FormEvent) => {
+            e.preventDefault()
+            create.mutate()
+          }}
+          style={{ gap: 'calc(var(--space) * 2)' }}
+        >
+          {create.error && <div className="error">{create.error.message}</div>}
           <div className="field">
             <label>Title</label>
             <input className="input" autoFocus value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Summer in Lisbon" />
@@ -144,7 +157,7 @@ export function AlbumsPage() {
             <button type="button" className="btn" onClick={() => setOpen(false)}>
               Cancel
             </button>
-            <button className="btn primary" disabled={!title.trim()}>
+            <button className="btn primary" disabled={!title.trim() || create.isPending}>
               Create
             </button>
           </div>

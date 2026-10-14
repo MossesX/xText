@@ -1,58 +1,68 @@
 import { useState, type FormEvent } from 'react'
-import { useLiveQuery } from 'dexie-react-hooks'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Trash2 } from 'lucide-react'
-import { db } from '../db/db'
-import { useSession } from '../store/session'
+import { api } from '../api/client'
+import { useMe } from '../api/hooks'
+import type { Comment } from '../api/types'
+import { Avatar } from './Avatar'
+import { useUI } from '../store/ui'
 
 interface Props {
   mediaId?: number
   albumId?: number
+  initial?: Comment[]
 }
 
-function formatDate(ts: number): string {
+export function formatDate(ts: number): string {
   return new Date(ts).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })
 }
 
-export function Comments({ mediaId, albumId }: Props) {
-  const user = useSession((s) => s.user)
+export function Comments({ mediaId, albumId, initial }: Props) {
+  const { data: user } = useMe()
+  const qc = useQueryClient()
+  const notify = useUI((s) => s.notify)
   const [body, setBody] = useState('')
-  const [busy, setBusy] = useState(false)
+  const url = mediaId != null ? `/api/media/${mediaId}/comments` : `/api/albums/${albumId}/comments`
+  const key = ['comments', mediaId != null ? `m${mediaId}` : `a${albumId}`]
 
-  const comments = useLiveQuery(async () => {
-    const rows = mediaId != null ? await db.comments.where('mediaId').equals(mediaId).toArray() : albumId != null ? await db.comments.where('albumId').equals(albumId).filter((c) => c.mediaId == null).toArray() : []
-    rows.sort((a, b) => a.createdAt - b.createdAt)
-    const users = await db.users.bulkGet([...new Set(rows.map((r) => r.userId))])
-    const byId = new Map(users.filter(Boolean).map((u) => [u!.id!, u!]))
-    return rows.map((r) => ({ ...r, author: byId.get(r.userId) }))
-  }, [mediaId, albumId])
+  const { data: comments } = useQuery({
+    queryKey: key,
+    queryFn: () => api.get<{ comments: Comment[] }>(url).then((r) => r.comments),
+    initialData: initial,
+  })
 
-  const submit = async (e: FormEvent) => {
-    e.preventDefault()
-    if (!body.trim() || user?.id == null) return
-    setBusy(true)
-    try {
-      await db.comments.add({ userId: user.id, mediaId, albumId, body: body.trim(), createdAt: Date.now() })
+  const post = useMutation({
+    mutationFn: (text: string) => api.post<{ comment: Comment }>(url, { body: text }).then((r) => r.comment),
+    onSuccess: (c) => {
+      qc.setQueryData<Comment[]>(key, (old) => [...(old ?? []), c])
       setBody('')
-    } finally {
-      setBusy(false)
-    }
+    },
+    onError: (e: Error) => notify(e.message, 'error'),
+  })
+  const remove = useMutation({
+    mutationFn: (id: number) => api.del(`/api/comments/${id}`),
+    onSuccess: (_r, id) => qc.setQueryData<Comment[]>(key, (old) => (old ?? []).filter((c) => c.id !== id)),
+  })
+
+  const submit = (e: FormEvent) => {
+    e.preventDefault()
+    if (body.trim()) post.mutate(body.trim())
   }
 
   return (
-    <div className="stack">
+    <div className="stack comments">
       <div>
         {!comments?.length && <p className="muted small">No comments yet. Start the conversation.</p>}
         {comments?.map((c) => (
           <div className="comment" key={c.id}>
-            <div className="avatar">{(c.author?.displayName ?? '?').slice(0, 2)}</div>
+            <Avatar name={c.author.displayName} />
             <div className="grow">
               <div className="row between">
                 <div>
-                  <strong>{c.author?.displayName ?? 'Removed user'}</strong>{' '}
-                  <span className="meta">{formatDate(c.createdAt)}</span>
+                  <strong>{c.author.displayName}</strong> <span className="meta">{formatDate(c.createdAt)}</span>
                 </div>
                 {(user?.role === 'admin' || user?.id === c.userId) && (
-                  <button className="btn ghost icon sm" title="Delete comment" onClick={() => db.comments.delete(c.id!)}>
+                  <button className="btn ghost icon sm" title="Delete comment" onClick={() => remove.mutate(c.id)}>
                     <Trash2 size={14} />
                   </button>
                 )}
@@ -75,7 +85,7 @@ export function Comments({ mediaId, albumId }: Props) {
         />
         <div className="row between">
           <span className="muted small">Ctrl/⌘ + Enter to post</span>
-          <button className="btn primary sm" disabled={busy || !body.trim()}>
+          <button className="btn primary sm" disabled={post.isPending || !body.trim()}>
             Post
           </button>
         </div>

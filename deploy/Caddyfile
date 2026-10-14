@@ -2,7 +2,7 @@
 # and proxies to the gallery container.
 {$SITE_DOMAIN:xgallery.amberxai.com} {
     encode zstd gzip
-    reverse_proxy app:80
+    reverse_proxy app:3000
     header {
         Strict-Transport-Security "max-age=31536000"
         X-Content-Type-Options "nosniff"

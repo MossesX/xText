@@ -1,15 +1,17 @@
 # Paste this whole file into hPanel -> VPS -> Docker Manager -> Create project -> Compose file.
-# It pulls the image GitHub Actions builds (ghcr.io/mossesx/xtext) and serves it with automatic HTTPS.
-# The GHCR package must be set to public (GitHub -> your profile -> Packages -> xtext -> Package
+# It pulls the image GitHub Actions builds (ghcr.io/mossesx/xgallery) and serves it with automatic HTTPS.
+# The GHCR package must be set to public (GitHub -> your profile -> Packages -> xgallery -> Package
 # settings -> Change visibility). The source repository can stay private.
 services:
   app:
-    image: ghcr.io/mossesx/xtext:latest
+    image: ghcr.io/mossesx/xgallery:latest
     pull_policy: always
     container_name: xgallery-app
     restart: unless-stopped
+    volumes:
+      - xgallery_data:/data
     expose:
-      - "80"
+      - "3000"
 
   caddy:
     image: caddy:2-alpine
@@ -33,7 +35,7 @@ configs:
     content: |
       xgallery.amberxai.com {
           encode zstd gzip
-          reverse_proxy app:80
+          reverse_proxy app:3000
           header {
               Strict-Transport-Security "max-age=31536000"
               X-Content-Type-Options "nosniff"
@@ -42,5 +44,6 @@ configs:
       }
 
 volumes:
+  xgallery_data:
   caddy_data:
   caddy_config:

@@ -1,9 +1,9 @@
-import type { Palette, Theme } from '../db/types'
+import type { Palette, ThemeDraft } from '../api/types'
 import { hslToHex, readableOn, type HSL } from './color'
 
 export const FONT_CHOICES = {
-  display: ['Playfair Display', 'Cormorant Garamond', 'Space Grotesk', 'DM Sans', 'Inter'],
-  body: ['Inter', 'DM Sans', 'Space Grotesk'],
+  display: ['Sora', 'Playfair Display', 'Cormorant Garamond', 'Space Grotesk', 'DM Sans', 'Inter'],
+  body: ['Inter', 'DM Sans', 'Space Grotesk', 'Sora'],
 } as const
 
 type Harmony = 'complementary' | 'analogous' | 'triadic' | 'split' | 'monochrome'
@@ -75,7 +75,7 @@ export function buildPalettes(primary: HSL, accent: HSL, neutralHue: number, neu
 }
 
 /** Randomly generate a tasteful, harmonious theme. */
-export function rollTheme(): Omit<Theme, 'id' | 'createdAt'> {
+export function rollTheme(): ThemeDraft {
   const harmony = pick<Harmony>(['complementary', 'analogous', 'triadic', 'split', 'monochrome'])
   const baseHue = Math.floor(rand(0, 360))
   const primary: HSL = { h: baseHue, s: Math.round(rand(45, 80)), l: Math.round(rand(38, 52)) }
@@ -97,32 +97,20 @@ export function rollTheme(): Omit<Theme, 'id' | 'createdAt'> {
   }
 }
 
-export const PRESET_THEMES: Omit<Theme, 'id' | 'createdAt'>[] = [
-  {
-    name: 'Lumen (Default)',
-    ...buildPalettes({ h: 222, s: 72, l: 50 }, { h: 32, s: 85, l: 54 }, 222, 8),
-    fontDisplay: 'Playfair Display',
-    fontBody: 'Inter',
-    radius: 12,
-    scale: 1,
-    builtIn: true,
+export const AMBERX_FALLBACK: ThemeDraft = {
+  name: 'AmberX',
+  light: {
+    bg: '#f6f3ee', bgElevated: '#ffffff', surface: '#ffffff', surfaceHover: '#f1ebe2', border: '#e4dccf',
+    text: '#1f2329', textMuted: '#6b7280', primary: '#e8821e', primaryText: '#ffffff', accent: '#2563eb', accentText: '#ffffff',
+    danger: '#d83a31', success: '#2e9e54',
   },
-  {
-    name: 'Noir Atelier',
-    ...buildPalettes({ h: 42, s: 70, l: 48 }, { h: 350, s: 60, l: 52 }, 40, 4),
-    fontDisplay: 'Cormorant Garamond',
-    fontBody: 'DM Sans',
-    radius: 2,
-    scale: 1,
-    builtIn: true,
+  dark: {
+    bg: '#14100b', bgElevated: '#1c160d', surface: '#1f1810', surfaceHover: '#2a2114', border: '#352a18',
+    text: '#f0e8da', textMuted: '#a89878', primary: '#f0b54a', primaryText: '#160f06', accent: '#d99524', accentText: '#160f06',
+    danger: '#ef6b63', success: '#4cc98c',
   },
-  {
-    name: 'Verdant Loft',
-    ...buildPalettes({ h: 152, s: 50, l: 38 }, { h: 20, s: 80, l: 55 }, 150, 10),
-    fontDisplay: 'Space Grotesk',
-    fontBody: 'Space Grotesk',
-    radius: 20,
-    scale: 1.05,
-    builtIn: true,
-  },
-]
+  fontDisplay: 'Sora',
+  fontBody: 'Inter',
+  radius: 14,
+  scale: 1,
+}

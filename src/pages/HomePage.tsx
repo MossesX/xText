@@ -1,80 +1,117 @@
-import { Link } from 'react-router-dom'
-import { useLiveQuery } from 'dexie-react-hooks'
-import { Images } from 'lucide-react'
-import { db } from '../db/db'
-import { getSiteSettings } from '../lib/settings'
-import { useSession } from '../store/session'
+import { useMemo } from 'react'
+import { Link, useSearchParams } from 'react-router-dom'
+import { ArrowRight, Images, LayoutGrid, Search, X } from 'lucide-react'
+import { useAlbums, useMe, useSettings } from '../api/hooks'
+import { AlbumCard } from '../components/AlbumCard'
+import { AlbumCardSkeleton } from '../components/Skeleton'
 import { MediaThumb } from '../components/MediaThumb'
-import type { Album } from '../db/types'
 
-function AlbumCard({ album }: { album: Album }) {
-  const cover = useLiveQuery(async () => {
-    if (album.coverMediaId != null) {
-      const m = await db.media.get(album.coverMediaId)
-      if (m) return m
-    }
-    return db.media.where('[albumId+sortOrder]').between([album.id!, -Infinity], [album.id!, Infinity]).first()
-  }, [album.id, album.coverMediaId])
-  const count = useLiveQuery(() => db.media.where('albumId').equals(album.id!).count(), [album.id]) ?? 0
-  return (
-    <Link to={`/album/${album.slug}`} className="album-card">
-      <div className="cover">
-        {cover ? (
-          <MediaThumb item={cover} />
-        ) : (
-          <div className="cover-placeholder">
-            <Images size={36} strokeWidth={1.2} />
-          </div>
-        )}
-      </div>
-      <div className="body">
-        <div className="row between">
-          <h3>{album.title}</h3>
-          {album.visibility === 'draft' && <span className="badge">Draft</span>}
-        </div>
-        {album.description && (
-          <p className="muted small" style={{ display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
-            {album.description}
-          </p>
-        )}
-        <div className="row" style={{ gap: 6 }}>
-          <span className="badge">{count} items</span>
-          {album.tags.slice(0, 3).map((t) => (
-            <span className="badge primary" key={t}>
-              {t}
-            </span>
-          ))}
-        </div>
-      </div>
-    </Link>
-  )
-}
+const SORTS = [
+  ['manual', 'Curated'],
+  ['newest', 'Newest'],
+  ['updated', 'Recently updated'],
+  ['popular', 'Most viewed'],
+  ['title', 'A to Z'],
+] as const
 
 export function HomePage() {
-  const user = useSession((s) => s.user)
-  const settings = useLiveQuery(() => getSiteSettings(), [])
-  const albums = useLiveQuery(async () => {
-    const all = await db.albums.orderBy('sortOrder').toArray()
-    return user?.role === 'admin' ? all : all.filter((a) => a.visibility === 'published')
-  }, [user?.role])
+  const { data: user } = useMe()
+  const { data: site } = useSettings()
+  const [params, setParams] = useSearchParams()
+  const q = params.get('q') ?? ''
+  const tag = params.get('tag') ?? ''
+  const sort = params.get('sort') ?? 'manual'
+  const { data, isLoading } = useAlbums({ q: q || undefined, tag: tag || undefined, sort })
+
+  const set = (key: string, value: string) => {
+    const next = new URLSearchParams(params)
+    if (value) next.set(key, value)
+    else next.delete(key)
+    setParams(next, { replace: true })
+  }
+
+  const albums = data?.albums ?? []
+  const hero = useMemo(() => {
+    if (q || tag) return null
+    const byId = site?.settings.heroAlbumId ? albums.find((a) => a.id === site.settings.heroAlbumId) : undefined
+    return byId ?? albums.find((a) => a.featured && a.cover) ?? albums.find((a) => a.cover) ?? null
+  }, [albums, q, tag, site?.settings.heroAlbumId])
+  const rest = hero ? albums.filter((a) => a.id !== hero.id) : albums
+  const filtering = !!(q || tag)
 
   return (
     <main className="page">
-      <section className="hero">
-        <div className="eyebrow" style={{ marginBottom: 12 }}>{settings?.tagline}</div>
-        <h1>{settings?.siteTitle ?? 'Lumen'}</h1>
-        <p className="muted" style={{ maxWidth: 560 }}>
-          Welcome back, {user?.displayName}. Browse the galleries below.
-        </p>
+      {hero && (
+        <section className="hero-feature">
+          {hero.cover && <MediaThumb item={hero.cover} alt="" className="hero-bg" />}
+          <div className="hero-shade" />
+          <div className="hero-content">
+            <div className="eyebrow light">Featured gallery</div>
+            <h1>{hero.title}</h1>
+            {hero.description && <p className="lead clamp-3">{hero.description}</p>}
+            <div className="row" style={{ gap: 12 }}>
+              <Link to={`/album/${hero.slug}`} className="btn primary lg">
+                Open gallery <ArrowRight size={16} />
+              </Link>
+              <span className="chip chip-glass">
+                <Images size={12} /> {hero.counts.media} items
+              </span>
+            </div>
+          </div>
+        </section>
+      )}
+
+      <section className="toolbar">
+        <div>
+          <div className="eyebrow">{filtering ? 'Results' : 'All galleries'}</div>
+          <h2 style={{ margin: 0 }}>
+            {q ? `“${q}”` : tag ? `#${tag}` : `Welcome back, ${user?.display_name?.split(' ')[0] ?? 'friend'}`}
+          </h2>
+        </div>
+        <div className="row">
+          {filtering && (
+            <button className="btn sm" onClick={() => setParams({}, { replace: true })}>
+              <X size={14} /> Clear
+            </button>
+          )}
+          <select className="select" value={sort} onChange={(e) => set('sort', e.target.value)} aria-label="Sort" style={{ width: 'auto' }}>
+            {SORTS.map(([v, l]) => (
+              <option key={v} value={v}>
+                {l}
+              </option>
+            ))}
+          </select>
+        </div>
       </section>
-      {albums && albums.length === 0 ? (
+
+      {!!data?.tags.length && (
+        <div className="tag-row">
+          {data.tags.map((t) => (
+            <button key={t.name} className={`chip chip-tag ${tag === t.name ? 'active' : ''}`} onClick={() => set('tag', tag === t.name ? '' : t.name)}>
+              #{t.name} <span className="muted">{t.count}</span>
+            </button>
+          ))}
+        </div>
+      )}
+
+      {isLoading ? (
+        <div className="album-grid">
+          {Array.from({ length: 6 }).map((_, i) => (
+            <AlbumCardSkeleton key={i} />
+          ))}
+        </div>
+      ) : rest.length === 0 && !hero ? (
         <div className="empty">
-          <Images size={40} strokeWidth={1.2} />
-          <p style={{ marginTop: 12 }}>No galleries yet.</p>
-          {user?.role === 'admin' && <Link to="/admin/albums">Create your first album →</Link>}
+          {filtering ? <Search size={40} strokeWidth={1.2} /> : <LayoutGrid size={40} strokeWidth={1.2} />}
+          <p style={{ marginTop: 12 }}>{filtering ? 'Nothing matches that search.' : 'No galleries have been published yet.'}</p>
+          {user?.role === 'admin' && !filtering && <Link to="/admin/albums">Create your first album →</Link>}
         </div>
       ) : (
-        <div className="album-grid">{albums?.map((a) => <AlbumCard album={a} key={a.id} />)}</div>
+        <div className="album-grid">
+          {rest.map((a) => (
+            <AlbumCard album={a} key={a.id} />
+          ))}
+        </div>
       )}
     </main>
   )

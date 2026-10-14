@@ -1,5 +1,5 @@
 import { Dices } from 'lucide-react'
-import type { CaptionMode, LayoutConfig, TileShape } from '../db/types'
+import type { CaptionMode, LayoutConfig, TileShape } from '../api/types'
 import { LAYOUT_KINDS, rollLayout } from '../layouts/generate'
 
 interface Props {

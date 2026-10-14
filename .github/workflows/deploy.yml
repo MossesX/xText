@@ -46,6 +46,17 @@ jobs:
     concurrency: deploy-vps
     steps:
       - uses: actions/checkout@v4
+      - name: Check deploy secrets are present
+        env:
+          HAS_PASSWORD: ${{ secrets.VPS_PASSWORD != '' }}
+          HAS_KEY: ${{ secrets.VPS_SSH_KEY != '' }}
+        run: |
+          echo "VPS_PASSWORD set: $HAS_PASSWORD"
+          echo "VPS_SSH_KEY set:  $HAS_KEY"
+          if [ "$HAS_PASSWORD" != "true" ] && [ "$HAS_KEY" != "true" ]; then
+            echo "::error::Neither VPS_PASSWORD nor VPS_SSH_KEY is set as a Repository secret on this repository."
+            exit 1
+          fi
       - name: Copy source to the VPS
         uses: appleboy/scp-action@v0.1.7
         with:

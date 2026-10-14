@@ -1,36 +1,61 @@
-import { useState } from 'react'
-import { Link, Navigate, useParams } from 'react-router-dom'
-import { useLiveQuery } from 'dexie-react-hooks'
-import { ArrowLeft, Pencil } from 'lucide-react'
-import { db } from '../db/db'
-import { getSiteSettings } from '../lib/settings'
-import { useSession } from '../store/session'
+import { useEffect, useState } from 'react'
+import { Link, Navigate, useParams, useSearchParams } from 'react-router-dom'
+import { ArrowLeft, Clapperboard, Eye, Heart, Images, Pencil, Play, Share2 } from 'lucide-react'
+import { useAlbum, useMe, useSettings } from '../api/hooks'
 import { MediaLayout } from '../components/MediaLayout'
 import { Lightbox } from '../components/Lightbox'
 import { Comments } from '../components/Comments'
-import { useObjectUrl } from '../lib/useObjectUrl'
-import type { MediaItem } from '../db/types'
+import { FavoriteButton } from '../components/FavoriteButton'
+import { PageLoader } from '../components/Skeleton'
+import { useUI } from '../store/ui'
+import { ApiError } from '../api/client'
 
 export function AlbumPage() {
   const { slug } = useParams()
-  const user = useSession((s) => s.user)
-  const settings = useLiveQuery(() => getSiteSettings(), [])
-  const album = useLiveQuery(() => db.albums.where('slug').equals(slug ?? '').first(), [slug])
-  const items = useLiveQuery(async () => {
-    if (album?.id == null) return [] as MediaItem[]
-    return db.media.where('[albumId+sortOrder]').between([album.id, -Infinity], [album.id, Infinity]).toArray()
-  }, [album?.id])
-  const cover = useLiveQuery(async () => {
-    if (album?.coverMediaId == null) return items?.[0]
-    return (await db.media.get(album.coverMediaId)) ?? items?.[0]
-  }, [album?.coverMediaId, items])
-  const coverUrl = useObjectUrl(cover?.thumb ?? (cover?.kind === 'image' ? cover.blob : undefined))
+  const { data: user } = useMe()
+  const { data: site } = useSettings()
+  const { data, isLoading, error } = useAlbum(slug)
+  const notify = useUI((s) => s.notify)
+  const [params, setParams] = useSearchParams()
+  const openId = params.get('m')
   const [open, setOpen] = useState<number | null>(null)
 
-  if (album === undefined || settings === undefined) return <main className="page" />
-  if (album === null || (album.visibility === 'draft' && user?.role !== 'admin')) return <Navigate to="/" replace />
+  useEffect(() => {
+    if (!data || !openId) return
+    const idx = data.media.findIndex((m) => String(m.id) === openId)
+    if (idx >= 0) setOpen(idx)
+  }, [data, openId])
 
-  const layout = album.layoutOverride ?? settings.defaultLayout
+  if (isLoading || !site) return <PageLoader />
+  if (error instanceof ApiError && error.status === 404) return <Navigate to="/" replace />
+  if (!data) return <PageLoader />
+
+  const { album, media, comments } = data
+  const layout = album.layoutOverride ?? site.settings.defaultLayout
+  const heroItem = album.cover ?? media[0]
+
+  const openAt = (i: number) => {
+    setOpen(i)
+    const next = new URLSearchParams(params)
+    next.set('m', String(media[i].id))
+    setParams(next, { replace: true })
+  }
+  const close = () => {
+    setOpen(null)
+    const next = new URLSearchParams(params)
+    next.delete('m')
+    setParams(next, { replace: true })
+  }
+
+  const share = async () => {
+    const url = album.shareToken ? `${location.origin}/s/${album.shareToken}` : location.href
+    try {
+      await navigator.clipboard.writeText(url)
+      notify(album.shareToken ? 'Public share link copied' : 'Link copied (members only)', 'success')
+    } catch {
+      notify(url)
+    }
+  }
 
   return (
     <main className="page">
@@ -38,56 +63,90 @@ export function AlbumPage() {
         <Link to="/" className="btn ghost sm">
           <ArrowLeft size={14} /> All galleries
         </Link>
-        {user?.role === 'admin' && (
-          <Link to={`/admin/albums/${album.id}`} className="btn sm">
-            <Pencil size={14} /> Edit album
-          </Link>
-        )}
+        <div className="row">
+          <button className="btn sm" onClick={share}>
+            <Share2 size={14} /> Share
+          </button>
+          <FavoriteButton album={album} />
+          {media.length > 1 && (
+            <button className="btn sm" onClick={() => openAt(0)}>
+              <Play size={14} /> Slideshow
+            </button>
+          )}
+          {user?.role === 'admin' && (
+            <Link to={`/admin/albums/${album.id}`} className="btn sm">
+              <Pencil size={14} /> Edit
+            </Link>
+          )}
+        </div>
       </div>
 
-      {layout.heroCover && coverUrl ? (
+      {layout.heroCover && heroItem ? (
         <section className="album-hero">
-          <img src={coverUrl} alt="" />
+          <img src={heroItem.thumbUrl ?? heroItem.url} alt="" />
           <div className="shade" />
           <div className="content">
             <div className="row" style={{ gap: 6, marginBottom: 10 }}>
               {album.tags.map((t) => (
-                <span className="badge" key={t} style={{ background: 'rgba(255,255,255,0.18)', color: '#fff' }}>
-                  {t}
-                </span>
+                <Link to={`/?tag=${encodeURIComponent(t)}`} className="chip chip-glass" key={t}>
+                  #{t}
+                </Link>
               ))}
-              {album.layoutOverride && user?.role === 'admin' && <span className="badge accent">Custom layout</span>}
+              {album.visibility === 'draft' && <span className="chip">Draft</span>}
             </div>
             <h1>{album.title}</h1>
-            {album.description && <p>{album.description}</p>}
+            {album.description && <p className="lead">{album.description}</p>}
+            <AlbumMeta album={album} />
           </div>
         </section>
       ) : (
         <header className="album-header">
           <div className="row" style={{ gap: 6, marginBottom: 10 }}>
             {album.tags.map((t) => (
-              <span className="badge primary" key={t}>
-                {t}
-              </span>
+              <Link to={`/?tag=${encodeURIComponent(t)}`} className="badge primary" key={t}>
+                #{t}
+              </Link>
             ))}
           </div>
           <h1>{album.title}</h1>
-          {album.description && <p className="muted" style={{ maxWidth: 720 }}>{album.description}</p>}
+          {album.description && <p className="muted lead" style={{ maxWidth: 720 }}>{album.description}</p>}
+          <AlbumMeta album={album} muted />
         </header>
       )}
 
-      <MediaLayout items={items ?? []} layout={layout} onOpen={setOpen} />
+      <MediaLayout items={media} layout={layout} onOpen={openAt} />
 
-      {settings.allowComments && (
-        <section className="card" style={{ marginTop: 'calc(var(--space) * 6)', maxWidth: 760 }}>
+      {site.settings.allowComments && (
+        <section className="card discussion">
           <h3>Discussion</h3>
-          <Comments albumId={album.id} />
+          <Comments albumId={album.id} initial={comments} />
         </section>
       )}
 
-      {open != null && items && (
-        <Lightbox items={items} index={open} onClose={() => setOpen(null)} onNavigate={setOpen} allowComments={settings.allowComments} allowLikes={settings.allowLikes} />
+      {open != null && (
+        <Lightbox items={media} index={open} onClose={close} onNavigate={openAt} allowComments={site.settings.allowComments} allowLikes={site.settings.allowLikes} allowDownloads={site.settings.allowDownloads} />
       )}
     </main>
+  )
+}
+
+function AlbumMeta({ album, muted }: { album: { counts: { media: number; videos: number; likes: number }; views: number }; muted?: boolean }) {
+  return (
+    <div className={`row album-meta ${muted ? 'muted' : ''}`} style={{ gap: 16, marginTop: 10 }}>
+      <span className="row" style={{ gap: 5 }}>
+        <Images size={14} /> {album.counts.media} items
+      </span>
+      {album.counts.videos > 0 && (
+        <span className="row" style={{ gap: 5 }}>
+          <Clapperboard size={14} /> {album.counts.videos} videos
+        </span>
+      )}
+      <span className="row" style={{ gap: 5 }}>
+        <Heart size={14} /> {album.counts.likes}
+      </span>
+      <span className="row" style={{ gap: 5 }}>
+        <Eye size={14} /> {album.views}
+      </span>
+    </div>
   )
 }
