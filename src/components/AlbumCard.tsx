@@ -39,6 +39,7 @@ export function AlbumCard({ album, large = false }: { album: Album; large?: bool
       </div>
       <div className="body">
         <h3>{album.title}</h3>
+        {album.gallery && <div className="muted small" style={{ marginTop: -4 }}>{album.gallery.title}</div>}
         {album.description && <p className="muted small clamp-2">{album.description}</p>}
         <div className="row between" style={{ marginTop: 'auto' }}>
           <div className="row" style={{ gap: 6 }}>

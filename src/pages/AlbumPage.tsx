@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link, Navigate, useParams, useSearchParams } from 'react-router-dom'
 import { ArrowLeft, Clapperboard, Eye, Heart, Images, Pencil, Play, Share2 } from 'lucide-react'
-import { useAlbum, useMe, useSettings } from '../api/hooks'
+import { useAlbum, useSettings } from '../api/hooks'
 import { MediaLayout } from '../components/MediaLayout'
 import { Lightbox } from '../components/Lightbox'
 import { Comments } from '../components/Comments'
@@ -12,7 +12,6 @@ import { ApiError } from '../api/client'
 
 export function AlbumPage() {
   const { slug } = useParams()
-  const { data: user } = useMe()
   const { data: site } = useSettings()
   const { data, isLoading, error } = useAlbum(slug)
   const notify = useUI((s) => s.notify)
@@ -60,8 +59,8 @@ export function AlbumPage() {
   return (
     <main className="page">
       <div className="row between" style={{ marginBottom: 'calc(var(--space) * 2)' }}>
-        <Link to="/" className="btn ghost sm">
-          <ArrowLeft size={14} /> All galleries
+        <Link to={album.gallery ? `/g/${album.gallery.slug}` : '/'} className="btn ghost sm">
+          <ArrowLeft size={14} /> {album.gallery?.title ?? 'All galleries'}
         </Link>
         <div className="row">
           <button className="btn sm" onClick={share}>
@@ -73,7 +72,7 @@ export function AlbumPage() {
               <Play size={14} /> Slideshow
             </button>
           )}
-          {user?.role === 'admin' && (
+          {data.canManage && (
             <Link to={`/admin/albums/${album.id}`} className="btn sm">
               <Pencil size={14} /> Edit
             </Link>

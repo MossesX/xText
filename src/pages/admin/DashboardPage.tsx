@@ -11,6 +11,8 @@ export function DashboardPage() {
     ['Albums', s ? `${s.published} / ${s.albums}` : undefined, '/admin/albums'],
     ['Media', s?.media, '/admin/albums'],
     ['Members', s ? `${s.activeUsers} active / ${s.users}` : undefined, '/admin/users'],
+    ['Pending', s?.pendingUsers, '/admin/users'],
+    ['Galleries', s?.galleries, '/admin/gallery'],
     ['Views', s?.views],
     ['Likes', s?.likes],
     ['Comments', s?.comments],

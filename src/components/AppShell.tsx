@@ -42,7 +42,7 @@ export function AppShell() {
             <NavLink to="/favorites">
               <Bookmark size={14} /> Saved
             </NavLink>
-            {user?.role === 'admin' && (
+            {(user?.role === 'admin' || user?.role === 'owner') && (
               <NavLink to="/admin">
                 <Settings2 size={14} /> Admin
               </NavLink>

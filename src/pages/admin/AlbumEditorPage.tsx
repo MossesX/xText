@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react'
 import { Link, Navigate, useParams } from 'react-router-dom'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { ArrowLeft, ArrowLeftRight, Copy, ExternalLink, GripVertical, Link2, Link2Off, Pencil, Star, Trash2 } from 'lucide-react'
+import { ArrowLeft, ArrowLeftRight, Copy, ExternalLink, Globe, GripVertical, Link2, Link2Off, Lock, Pencil, Star, Trash2 } from 'lucide-react'
 import { api, ApiError } from '../../api/client'
-import { useAlbum, useSettings } from '../../api/hooks'
+import { useAlbum, useSettings, useUsers } from '../../api/hooks'
+import { CheckList } from '../../components/CheckList'
 import type { Album, LayoutConfig, MediaItem } from '../../api/types'
 import { MediaThumb } from '../../components/MediaThumb'
 import { Modal } from '../../components/Modal'
@@ -27,6 +28,10 @@ export function AlbumEditorPage() {
   const [layoutDraft, setLayoutDraft] = useState<LayoutConfig | null>(null)
   const [media, setMedia] = useState<MediaItem[]>([])
   const [dragId, setDragId] = useState<number | null>(null)
+  const { data: users } = useUsers()
+  const [restricted, setRestricted] = useState(false)
+  const [allowed, setAllowed] = useState<number[]>([])
+  const [accessDirty, setAccessDirty] = useState(false)
 
   useEffect(() => {
     if (data && !draft) {
@@ -35,6 +40,12 @@ export function AlbumEditorPage() {
     }
   }, [data, draft])
   useEffect(() => setMedia(data?.media ?? []), [data?.media])
+  useEffect(() => {
+    if (data && !accessDirty) {
+      setRestricted(data.album.restricted)
+      setAllowed(data.album.allowedUserIds ?? [])
+    }
+  }, [data, accessDirty])
 
   const refresh = () => {
     qc.invalidateQueries({ queryKey: ['album'] })
@@ -60,6 +71,25 @@ export function AlbumEditorPage() {
     },
   })
   const removeMedia = useMutation({ mutationFn: (mid: number) => api.del(`/api/media/${mid}`), onSuccess: refresh })
+  const saveAccess = useMutation({
+    mutationFn: () => api.put(`/api/albums/${id}/access`, { restricted, userIds: allowed }),
+    onSuccess: () => {
+      refresh()
+      setAccessDirty(false)
+      notify('Album access saved', 'success')
+    },
+    onError: (e: Error) => notify(e.message, 'error'),
+  })
+  const setPublic = useMutation({
+    mutationFn: (enable: boolean) => api.put(`/api/galleries/${data!.album.galleryId}`, { publicAlbumId: enable ? data!.album.id : null }),
+    onSuccess: () => {
+      refresh()
+      qc.invalidateQueries({ queryKey: ['gallery'] })
+      qc.invalidateQueries({ queryKey: ['galleries'] })
+      notify('Gallery public album updated', 'success')
+    },
+    onError: (e: Error) => notify(e.message, 'error'),
+  })
   const reorder = useMutation({ mutationFn: (ids: number[]) => api.put('/api/media/reorder', { ids }), onSuccess: refresh })
 
   if (isLoading || !site) return <PageLoader />
@@ -88,6 +118,8 @@ export function AlbumEditorPage() {
   }
 
   const shareUrl = album.shareToken ? `${location.origin}/s/${album.shareToken}` : null
+  const members = (users ?? []).filter((u) => u.role === 'user' && (u.galleryIds ?? []).includes(album.galleryId))
+  const memberOptions = members.map((u) => ({ id: u.id, label: u.display_name, hint: `@${u.username}${u.status === 'pending' ? ' · pending' : ''}` }))
 
   return (
     <div className="stack" style={{ gap: 'calc(var(--space) * 3)' }}>
@@ -157,6 +189,27 @@ export function AlbumEditorPage() {
             <div>
               <button className="btn sm" onClick={() => share.mutate(!album.shareToken)}>
                 {album.shareToken ? <Link2Off size={14} /> : <Link2 size={14} />} {album.shareToken ? 'Turn off link' : 'Create public link'}
+              </button>
+            </div>
+          </section>
+
+          <section className="card stack" style={{ gap: 'calc(var(--space) * 1.5)' }}>
+            <div className="row between">
+              <h3 style={{ margin: 0 }}>Who can see this album</h3>
+              {album.isPublic ? <span className="badge success">Public album</span> : restricted ? <span className="badge accent">Selected members</span> : <span className="badge">All gallery members</span>}
+            </div>
+            <label className="checkbox">
+              <input type="checkbox" checked={restricted} onChange={(e) => { setRestricted(e.target.checked); setAccessDirty(true) }} /> <Lock size={14} /> Limit to selected members
+            </label>
+            {restricted && (
+              <CheckList options={memberOptions} selected={allowed} onChange={(ids) => { setAllowed(ids); setAccessDirty(true) }} emptyText="No members have access to this gallery yet. Add or generate members first." />
+            )}
+            <div className="row between">
+              <button className="btn sm" onClick={() => setPublic.mutate(!album.isPublic)} disabled={setPublic.isPending || (!album.isPublic && album.visibility !== 'published')} title={album.visibility !== 'published' ? 'Publish the album first' : ''}>
+                <Globe size={14} /> {album.isPublic ? 'Stop being the public album' : "Use as the gallery's public album"}
+              </button>
+              <button className="btn primary sm" onClick={() => saveAccess.mutate()} disabled={!accessDirty || saveAccess.isPending}>
+                Save access
               </button>
             </div>
           </section>

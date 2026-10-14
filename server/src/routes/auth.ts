@@ -17,8 +17,8 @@ authRouter.post(
     if (row.disabled) throw new HttpError(403, 'This account has been disabled')
     const token = createSession(row.id as number)
     setSessionCookie(res, token)
-    db.prepare('UPDATE users SET last_seen_at = ? WHERE id = ?').run(now(), row.id)
-    res.json({ user: publicUser(row) })
+    db.prepare("UPDATE users SET last_seen_at = ?, status = 'active' WHERE id = ?").run(now(), row.id)
+    res.json({ user: publicUser(db.prepare('SELECT * FROM users WHERE id = ?').get(row.id) as IdRow) })
   }),
 )
 

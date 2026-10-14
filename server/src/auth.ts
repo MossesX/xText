@@ -6,8 +6,10 @@ export interface User {
   id: number
   username: string
   display_name: string
-  role: 'admin' | 'user'
+  role: 'owner' | 'admin' | 'user'
   disabled: number
+  status: 'active' | 'pending'
+  created_by: number | null
   bio: string
   created_at: number
   last_seen_at: number | null
@@ -35,8 +37,10 @@ export function publicUser(row: Record<string, unknown>): User {
     id: row.id as number,
     username: row.username as string,
     display_name: row.display_name as string,
-    role: row.role as 'admin' | 'user',
+    role: row.role as 'owner' | 'admin' | 'user',
     disabled: row.disabled as number,
+    status: ((row.status as string) === 'pending' ? 'pending' : 'active'),
+    created_by: (row.created_by as number | null) ?? null,
     bio: (row.bio as string) ?? '',
     created_at: row.created_at as number,
     last_seen_at: (row.last_seen_at as number | null) ?? null,
@@ -109,8 +113,20 @@ export function requireAdmin(req: Request, res: Response, next: NextFunction): v
     res.status(401).json({ error: 'Sign in required' })
     return
   }
-  if (req.user.role !== 'admin') {
+  if (req.user.role !== 'admin' && req.user.role !== 'owner') {
     res.status(403).json({ error: 'Administrator access required' })
+    return
+  }
+  next()
+}
+
+export function requireOwner(req: Request, res: Response, next: NextFunction): void {
+  if (!req.user) {
+    res.status(401).json({ error: 'Sign in required' })
+    return
+  }
+  if (req.user.role !== 'owner') {
+    res.status(403).json({ error: 'Owner access required' })
     return
   }
   next()

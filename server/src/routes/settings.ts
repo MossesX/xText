@@ -1,6 +1,7 @@
 import { Router } from 'express'
 import { db, getSetting, setSetting } from '../db.js'
-import { requireAdmin } from '../auth.js'
+import { requireAdmin, requireOwner } from '../auth.js'
+import { isOwner, managedGalleryIds } from '../access.js'
 import { DEFAULT_SETTINGS } from '../brand.js'
 import { bool, num, str, wrap, IdRow } from '../util.js'
 
@@ -27,7 +28,7 @@ settingsRouter.get(
 
 settingsRouter.put(
   '/',
-  requireAdmin,
+  requireOwner,
   wrap((req, res) => {
     const s = current()
     const b = req.body ?? {}
@@ -51,8 +52,12 @@ settingsRouter.put(
 settingsRouter.get(
   '/stats',
   requireAdmin,
-  wrap((_req, res) => {
-    const c = (sql: string) => (db.prepare(sql).get() as { c: number }).c
+  wrap((req, res) => {
+    const gids = managedGalleryIds(req.user!)
+    const scope = isOwner(req.user) ? '' : ` AND gallery_id IN (${gids.map(() => '?').join(',') || 'NULL'})`
+    const inAlbums = `(SELECT id FROM albums WHERE 1=1${scope})`
+    const c = (sql: string) => (db.prepare(sql).get(...(scope ? gids : [])) as { c: number }).c
+    const cAll = (sql: string) => (db.prepare(sql).get() as { c: number }).c
     const recent = db
       .prepare(
         `SELECT c.*, u.display_name, u.username,
@@ -63,24 +68,29 @@ settingsRouter.get(
          LEFT JOIN media m ON m.id = c.media_id
          LEFT JOIN albums a2 ON a2.id = m.album_id
          LEFT JOIN albums a ON a.id = c.album_id
+         WHERE (c.album_id IN ${inAlbums} OR m.album_id IN ${inAlbums})
          ORDER BY c.created_at DESC LIMIT 8`,
       )
-      .all() as IdRow[]
+      .all(...(scope ? [...gids, ...gids] : [])) as IdRow[]
     const top = db
-      .prepare('SELECT a.id, a.title, a.slug, a.views, (SELECT COUNT(*) FROM likes l JOIN media m ON m.id = l.media_id WHERE m.album_id = a.id) AS likes FROM albums a ORDER BY a.views DESC LIMIT 5')
-      .all()
+      .prepare(`SELECT a.id, a.title, a.slug, a.views, (SELECT COUNT(*) FROM likes l JOIN media m ON m.id = l.media_id WHERE m.album_id = a.id) AS likes FROM albums a WHERE 1=1${scope} ORDER BY a.views DESC LIMIT 5`)
+      .all(...(scope ? gids : []))
+    const userScope = isOwner(req.user) ? '' : ` WHERE id IN (SELECT user_id FROM gallery_access WHERE gallery_id IN (${gids.map(() => '?').join(',') || 'NULL'}))`
+    const cu = (sql: string) => (db.prepare(sql).get(...(scope ? gids : [])) as { c: number }).c
     res.json({
-      albums: c('SELECT COUNT(*) c FROM albums'),
-      published: c("SELECT COUNT(*) c FROM albums WHERE visibility = 'published'"),
-      media: c('SELECT COUNT(*) c FROM media'),
-      videos: c("SELECT COUNT(*) c FROM media WHERE kind = 'video'"),
-      users: c('SELECT COUNT(*) c FROM users'),
-      activeUsers: c(`SELECT COUNT(*) c FROM users WHERE last_seen_at > ${Date.now() - 7 * 86_400_000}`),
-      likes: c('SELECT COUNT(*) c FROM likes'),
-      comments: c('SELECT COUNT(*) c FROM comments'),
-      favorites: c('SELECT COUNT(*) c FROM favorites'),
-      bytes: (db.prepare('SELECT COALESCE(SUM(size), 0) c FROM media').get() as { c: number }).c,
-      views: (db.prepare('SELECT COALESCE(SUM(views), 0) c FROM albums').get() as { c: number }).c,
+      albums: c(`SELECT COUNT(*) c FROM albums WHERE 1=1${scope}`),
+      published: c(`SELECT COUNT(*) c FROM albums WHERE visibility = 'published'${scope}`),
+      media: c(`SELECT COUNT(*) c FROM media WHERE album_id IN ${inAlbums}`),
+      videos: c(`SELECT COUNT(*) c FROM media WHERE kind = 'video' AND album_id IN ${inAlbums}`),
+      users: cu(`SELECT COUNT(*) c FROM users${userScope}`),
+      pendingUsers: cu(`SELECT COUNT(*) c FROM users${userScope ? userScope + ' AND' : ' WHERE'} status = 'pending'`),
+      activeUsers: cu(`SELECT COUNT(*) c FROM users${userScope ? userScope + ' AND' : ' WHERE'} last_seen_at > ${Date.now() - 7 * 86_400_000}`),
+      likes: c(`SELECT COUNT(*) c FROM likes WHERE media_id IN (SELECT id FROM media WHERE album_id IN ${inAlbums})`),
+      comments: c(`SELECT COUNT(*) c FROM comments WHERE album_id IN ${inAlbums} OR media_id IN (SELECT id FROM media WHERE album_id IN ${inAlbums})`),
+      favorites: c(`SELECT COUNT(*) c FROM favorites WHERE album_id IN ${inAlbums}`),
+      bytes: (db.prepare(`SELECT COALESCE(SUM(size), 0) c FROM media WHERE album_id IN ${inAlbums}`).get(...(scope ? gids : [])) as { c: number }).c,
+      views: (db.prepare(`SELECT COALESCE(SUM(views), 0) c FROM albums WHERE 1=1${scope}`).get(...(scope ? gids : [])) as { c: number }).c,
+      galleries: cAll('SELECT COUNT(*) c FROM galleries'),
       recentComments: recent.map((r) => ({
         id: r.id,
         body: r.body,

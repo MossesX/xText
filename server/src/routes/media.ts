@@ -8,6 +8,7 @@ import { db, MEDIA_DIR, now } from '../db.js'
 import { requireAdmin, requireUser } from '../auth.js'
 import { HttpError, num, parseJson, str, wrap, IdRow } from '../util.js'
 import { commentJson, mediaJson } from '../serialize.js'
+import { canManageGallery, canViewAlbum } from '../access.js'
 
 export const mediaRouter = Router()
 
@@ -56,12 +57,26 @@ function loadMedia(id: number): IdRow {
 }
 
 function canView(req: import('express').Request, row: Record<string, unknown>): boolean {
-  const album = db.prepare('SELECT visibility, share_token FROM albums WHERE id = ?').get(row.album_id as number) as { visibility: string; share_token: string | null } | undefined
+  const album = db.prepare('SELECT id, gallery_id, visibility, restricted, share_token FROM albums WHERE id = ?').get(row.album_id as number) as
+    | { id: number; gallery_id: number; visibility: string; restricted: number; share_token: string | null }
+    | undefined
   if (!album) return false
   const share = typeof req.query.s === 'string' ? req.query.s : ''
   if (share && album.share_token && share === album.share_token) return true
+  // Public gallery landing: the gallery's designated public album, or its splash image.
+  const gslug = typeof req.query.g === 'string' ? req.query.g : ''
+  if (gslug) {
+    const g = db.prepare('SELECT public_album_id, splash_media_id FROM galleries WHERE slug = ?').get(gslug) as { public_album_id: number | null; splash_media_id: number | null } | undefined
+    if (g && ((g.public_album_id === album.id && album.visibility === 'published') || g.splash_media_id === row.id)) return true
+  }
   if (!req.user) return false
-  return album.visibility === 'published' || req.user.role === 'admin'
+  return canViewAlbum(req.user, album)
+}
+
+function requireManage(req: import('express').Request, albumId: number): void {
+  const album = db.prepare('SELECT gallery_id FROM albums WHERE id = ?').get(albumId) as { gallery_id: number } | undefined
+  if (!album) throw new HttpError(404, 'Album not found')
+  if (!canManageGallery(req.user, album.gallery_id)) throw new HttpError(403, 'This album belongs to another gallery')
 }
 
 /* ---------- upload (admin) ---------- */
@@ -71,7 +86,7 @@ mediaRouter.post(
   requireAdmin,
   wrap(async (req, res) => {
     const albumId = Number(req.params.albumId)
-    if (!db.prepare('SELECT id FROM albums WHERE id = ?').get(albumId)) throw new HttpError(404, 'Album not found')
+    requireManage(req, albumId)
     const meta = parseJson<Record<string, unknown>>(Buffer.from(str(req.headers['x-meta'], 4000) || 'e30=', 'base64').toString('utf8'), {})
     const mime = str(req.headers['content-type'], 100) || 'application/octet-stream'
     const kind = mime.startsWith('video/') ? 'video' : mime.startsWith('image/') ? 'image' : null
@@ -93,6 +108,7 @@ mediaRouter.post(
   requireAdmin,
   wrap(async (req, res) => {
     const row = loadMedia(Number(req.params.id))
+    requireManage(req, row.album_id as number)
     const rel = (row.file_path as string).replace(/\.[^.]*$/, '') + '.thumb.webp'
     await streamToFile(req, rel)
     db.prepare('UPDATE media SET thumb_path = ? WHERE id = ?').run(rel, row.id)
@@ -138,6 +154,7 @@ mediaRouter.put(
   requireAdmin,
   wrap((req, res) => {
     const ids: number[] = Array.isArray(req.body?.ids) ? req.body.ids.map(Number) : []
+    if (ids.length) requireManage(req, (loadMedia(ids[0]).album_id as number))
     const upd = db.prepare('UPDATE media SET sort_order = ? WHERE id = ?')
     ids.forEach((id, i) => upd.run(i + 1, id))
     res.json({ ok: true })
@@ -149,6 +166,7 @@ mediaRouter.put(
   requireAdmin,
   wrap((req, res) => {
     const row = loadMedia(Number(req.params.id))
+    requireManage(req, row.album_id as number)
     const title = req.body?.title != null ? str(req.body.title, 200) : (row.title as string)
     const description = req.body?.description != null ? str(req.body.description, 2000) : (row.description as string)
     db.prepare('UPDATE media SET title = ?, description = ? WHERE id = ?').run(title, description, row.id)
@@ -161,6 +179,8 @@ mediaRouter.delete(
   requireAdmin,
   wrap((req, res) => {
     const row = loadMedia(Number(req.params.id))
+    requireManage(req, row.album_id as number)
+    db.prepare('UPDATE galleries SET splash_media_id = NULL WHERE splash_media_id = ?').run(row.id)
     db.prepare('DELETE FROM media WHERE id = ?').run(row.id)
     db.prepare('UPDATE albums SET cover_media_id = NULL WHERE cover_media_id = ?').run(row.id)
     removeMediaFiles(row)
@@ -225,7 +245,9 @@ mediaRouter.delete(
   wrap((req, res) => {
     const c = db.prepare('SELECT * FROM comments WHERE id = ?').get(Number(req.params.id)) as IdRow | undefined
     if (!c) throw new HttpError(404, 'Comment not found')
-    if (req.user!.role !== 'admin' && c.user_id !== req.user!.id) throw new HttpError(403, 'You can only delete your own comments')
+    const albumId = (c.album_id as number | null) ?? (db.prepare('SELECT album_id FROM media WHERE id = ?').get(c.media_id as number) as { album_id: number } | undefined)?.album_id
+    const galleryId = albumId ? (db.prepare('SELECT gallery_id FROM albums WHERE id = ?').get(albumId) as { gallery_id: number } | undefined)?.gallery_id : undefined
+    if (c.user_id !== req.user!.id && !(galleryId != null && canManageGallery(req.user, galleryId))) throw new HttpError(403, 'You can only delete your own comments')
     db.prepare('DELETE FROM comments WHERE id = ?').run(c.id)
     res.json({ ok: true })
   }),

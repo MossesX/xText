@@ -8,8 +8,9 @@ import { AMBERX_FALLBACK } from '../theme/generate'
 export function ThemeProvider({ children }: { children: ReactNode }) {
   const colorMode = useUI((s) => s.colorMode)
   const preview = useUI((s) => s.previewTheme)
+  const galleryTheme = useUI((s) => s.galleryTheme)
   const { data } = useSettings()
-  const theme = preview ?? data?.theme ?? AMBERX_FALLBACK
+  const theme = preview ?? galleryTheme ?? data?.theme ?? AMBERX_FALLBACK
 
   useEffect(() => {
     const mql = window.matchMedia('(prefers-color-scheme: dark)')

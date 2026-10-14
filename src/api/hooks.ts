@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api } from './client'
-import type { Album, Comment, MediaItem, SiteSettings, Stats, Theme, ThemeDraft, User } from './types'
+import type { Album, Comment, Gallery, MediaItem, SiteSettings, Stats, Theme, ThemeDraft, User } from './types'
 
 export const keys = {
   me: ['me'] as const,
@@ -13,6 +13,9 @@ export const keys = {
   stats: ['stats'] as const,
   mediaComments: (id: number) => ['media-comments', id] as const,
   share: (token: string) => ['share', token] as const,
+  galleries: ['galleries'] as const,
+  gallery: (key: string) => ['gallery', key] as const,
+  publicGallery: (slug: string) => ['public-gallery', slug] as const,
 }
 
 export function useMe() {
@@ -23,7 +26,7 @@ export function useSettings() {
   return useQuery({ queryKey: keys.settings, queryFn: () => api.get<{ settings: SiteSettings; theme: Theme | null }>('/api/settings'), staleTime: 60_000 })
 }
 
-export function useAlbums(params: { q?: string; tag?: string; sort?: string } = {}) {
+export function useAlbums(params: { q?: string; tag?: string; sort?: string; gallery?: string; mine?: string } = {}) {
   const qs = new URLSearchParams(Object.entries(params).filter(([, v]) => v) as [string, string][]).toString()
   return useQuery({
     queryKey: keys.albums(params),
@@ -35,7 +38,7 @@ export function useAlbums(params: { q?: string; tag?: string; sort?: string } = 
 export function useAlbum(key: string | undefined) {
   return useQuery({
     queryKey: keys.album(key ?? ''),
-    queryFn: () => api.get<{ album: Album; media: MediaItem[]; comments: Comment[] }>(`/api/albums/${encodeURIComponent(key ?? '')}`),
+    queryFn: () => api.get<{ album: Album; media: MediaItem[]; comments: Comment[]; canManage: boolean }>(`/api/albums/${encodeURIComponent(key ?? '')}`),
     enabled: !!key,
   })
 }
@@ -54,6 +57,26 @@ export function useUsers() {
 
 export function useStats() {
   return useQuery({ queryKey: keys.stats, queryFn: () => api.get<Stats>('/api/settings/stats') })
+}
+
+export function useGalleries() {
+  return useQuery({ queryKey: keys.galleries, queryFn: () => api.get<{ galleries: Gallery[] }>('/api/galleries').then((r) => r.galleries) })
+}
+
+export function useGallery(key: string | undefined) {
+  return useQuery({
+    queryKey: keys.gallery(key ?? ''),
+    queryFn: () => api.get<{ gallery: Gallery; albums: Album[]; canManage: boolean; theme: Theme | null }>(`/api/galleries/${encodeURIComponent(key ?? '')}`),
+    enabled: !!key,
+  })
+}
+
+export function usePublicGallery(slug: string | undefined) {
+  return useQuery({
+    queryKey: keys.publicGallery(slug ?? ''),
+    queryFn: () => api.get<{ gallery: Gallery; album: Album | null; media: MediaItem[]; theme: Theme | null }>(`/api/public/galleries/${encodeURIComponent(slug ?? '')}`),
+    enabled: !!slug,
+  })
 }
 
 export function useShare(token: string | undefined) {
@@ -92,7 +115,7 @@ export function useToggleLike() {
   return useMutation({
     mutationFn: (mediaId: number) => api.post<{ media: MediaItem }>(`/api/media/${mediaId}/like`).then((r) => r.media),
     onSuccess: (media) => {
-      qc.setQueriesData<{ album: Album; media: MediaItem[]; comments: Comment[] }>({ queryKey: ['album'] }, (old) =>
+      qc.setQueriesData<{ album: Album; media: MediaItem[]; comments: Comment[]; canManage: boolean }>({ queryKey: ['album'] }, (old) =>
         old ? { ...old, media: old.media.map((m) => (m.id === media.id ? media : m)) } : old,
       )
     },
@@ -107,6 +130,7 @@ export function useToggleFavorite() {
       qc.invalidateQueries({ queryKey: ['albums'] })
       qc.invalidateQueries({ queryKey: ['album'] })
       qc.invalidateQueries({ queryKey: keys.favorites })
+      qc.invalidateQueries({ queryKey: ['gallery'] })
     },
   })
 }

@@ -124,3 +124,42 @@ export function getSetting<T>(key: string, fallback: T): T {
 export function setSetting(key: string, value: unknown): void {
   db.prepare('INSERT INTO settings(key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value').run(key, JSON.stringify(value))
 }
+
+/* ---------- schema v2: galleries, access control, pending users ---------- */
+
+function hasColumn(table: string, col: string): boolean {
+  return (db.prepare(`PRAGMA table_info(${table})`).all() as { name: string }[]).some((c) => c.name === col)
+}
+
+db.exec(`
+CREATE TABLE IF NOT EXISTS galleries (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  owner_user_id INTEGER NOT NULL UNIQUE REFERENCES users(id) ON DELETE CASCADE,
+  slug TEXT NOT NULL UNIQUE,
+  title TEXT NOT NULL,
+  tagline TEXT NOT NULL DEFAULT '',
+  headline TEXT NOT NULL DEFAULT '',
+  splash_media_id INTEGER,
+  theme_id INTEGER,
+  public_album_id INTEGER,
+  created_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL
+);
+CREATE TABLE IF NOT EXISTS gallery_access (
+  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  gallery_id INTEGER NOT NULL REFERENCES galleries(id) ON DELETE CASCADE,
+  created_at INTEGER NOT NULL,
+  PRIMARY KEY (user_id, gallery_id)
+);
+CREATE TABLE IF NOT EXISTS album_access (
+  album_id INTEGER NOT NULL REFERENCES albums(id) ON DELETE CASCADE,
+  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  created_at INTEGER NOT NULL,
+  PRIMARY KEY (album_id, user_id)
+);
+`)
+if (!hasColumn('users', 'status')) db.exec("ALTER TABLE users ADD COLUMN status TEXT NOT NULL DEFAULT 'active'")
+if (!hasColumn('users', 'created_by')) db.exec('ALTER TABLE users ADD COLUMN created_by INTEGER')
+if (!hasColumn('albums', 'gallery_id')) db.exec('ALTER TABLE albums ADD COLUMN gallery_id INTEGER')
+if (!hasColumn('albums', 'restricted')) db.exec('ALTER TABLE albums ADD COLUMN restricted INTEGER NOT NULL DEFAULT 0')
+db.exec('CREATE INDEX IF NOT EXISTS albums_gallery ON albums(gallery_id)')

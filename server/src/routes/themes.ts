@@ -1,6 +1,6 @@
 import { Router } from 'express'
 import { db, now } from '../db.js'
-import { requireAdmin, requireUser } from '../auth.js'
+import { requireOwner, requireUser } from '../auth.js'
 import { HttpError, num, str, wrap, parseJson, IdRow } from '../util.js'
 
 export const themesRouter = Router()
@@ -43,7 +43,7 @@ themesRouter.get(
 
 themesRouter.post(
   '/',
-  requireAdmin,
+  requireOwner,
   wrap((req, res) => {
     const b = req.body ?? {}
     const info = db
@@ -55,7 +55,7 @@ themesRouter.post(
 
 themesRouter.put(
   '/:id',
-  requireAdmin,
+  requireOwner,
   wrap((req, res) => {
     const id = Number(req.params.id)
     const row = db.prepare('SELECT * FROM themes WHERE id = ?').get(id) as IdRow | undefined
@@ -77,7 +77,7 @@ themesRouter.put(
 
 themesRouter.delete(
   '/:id',
-  requireAdmin,
+  requireOwner,
   wrap((req, res) => {
     const id = Number(req.params.id)
     const active = (db.prepare('SELECT value FROM settings WHERE key = ?').get('site') as { value: string } | undefined)?.value

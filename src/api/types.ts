@@ -1,4 +1,4 @@
-export type Role = 'admin' | 'user'
+export type Role = 'owner' | 'admin' | 'user'
 
 export interface User {
   id: number
@@ -9,8 +9,12 @@ export interface User {
   bio: string
   created_at: number
   last_seen_at: number | null
+  status: 'active' | 'pending'
+  created_by: number | null
   likes?: number
   comments?: number
+  galleryIds?: number[]
+  ownGalleryId?: number | null
 }
 
 export interface Palette {
@@ -97,8 +101,37 @@ export interface MediaItem {
 
 export type Visibility = 'published' | 'draft'
 
+export interface GallerySummary {
+  id: number
+  slug: string
+  title: string
+  publicAlbumId: number | null
+}
+
+export interface Gallery {
+  id: number
+  slug: string
+  title: string
+  tagline: string
+  headline: string
+  owner: { id: number; displayName: string; username: string } | null
+  isMine: boolean
+  splash: MediaItem | null
+  splashMediaId: number | null
+  themeId: number | null
+  publicAlbumId: number | null
+  publicAlbum: { id: number; slug: string; title: string } | null
+  counts: { albums: number; members: number }
+  createdAt: number
+}
+
 export interface Album {
   id: number
+  galleryId: number
+  gallery: GallerySummary | null
+  restricted: boolean
+  allowedUserIds?: number[]
+  isPublic: boolean
   slug: string
   title: string
   description: string
@@ -134,6 +167,8 @@ export interface Stats {
   videos: number
   users: number
   activeUsers: number
+  pendingUsers: number
+  galleries: number
   likes: number
   comments: number
   favorites: number

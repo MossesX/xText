@@ -3,7 +3,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { Eye, EyeOff, GripVertical, Plus, Star, Trash2 } from 'lucide-react'
 import { api } from '../../api/client'
-import { useAlbums } from '../../api/hooks'
+import { useAlbums, useMe } from '../../api/hooks'
 import type { Album } from '../../api/types'
 import { Modal } from '../../components/Modal'
 import { MediaThumb } from '../../components/MediaThumb'
@@ -13,7 +13,8 @@ export function AlbumsPage() {
   const navigate = useNavigate()
   const qc = useQueryClient()
   const notify = useUI((s) => s.notify)
-  const { data } = useAlbums({ sort: 'manual' })
+  const { data: me } = useMe()
+  const { data } = useAlbums({ sort: 'manual', mine: '1' })
   const [list, setList] = useState<Album[]>([])
   const [open, setOpen] = useState(false)
   const [title, setTitle] = useState('')
@@ -109,7 +110,9 @@ export function AlbumsPage() {
                           {a.title}
                         </Link>
                         <div className="muted small">
-                          /album/{a.slug} {a.featured && <span className="badge accent">Featured</span>}
+                          /album/{a.slug} {a.featured && <span className="badge accent">Featured</span>} {a.isPublic && <span className="badge success">Public</span>}
+                          {a.restricted && <span className="badge">Restricted</span>}
+                          {me?.role === 'owner' && a.gallery && <span className="badge primary">{a.gallery.title}</span>}
                         </div>
                       </div>
                     </div>
