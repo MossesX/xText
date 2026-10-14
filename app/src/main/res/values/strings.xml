@@ -1,0 +1,147 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">xText</string>
+    <string name="tagline">Reads your messages aloud and lets you reply by voice, hands free.</string>
+
+    <!-- Notification channels -->
+    <string name="channel_status">Engine status</string>
+    <string name="channel_status_desc">Shown while xText is running in the background.</string>
+    <string name="channel_alerts">Alerts</string>
+    <string name="channel_alerts_desc">Messages that could not be read automatically.</string>
+
+    <!-- Service status -->
+    <string name="status_off">xText is off. Tap Start to begin reading your messages aloud.</string>
+    <string name="status_listening">Running. New messages are read aloud and you can reply by voice.</string>
+    <string name="status_standby">Running in read-only mode. Tap \"Enable voice replies\" on the notification to use the microphone.</string>
+    <string name="status_reading">Reading a message…</string>
+    <string name="status_paused">Paused for 30 minutes.</string>
+    <string name="status_no_mic">Microphone permission is missing, so voice replies are off.</string>
+    <string name="status_no_recognizer">No speech recognition service is installed on this device.</string>
+    <string name="status_no_listener">Notification access is off, so only SMS will be read.</string>
+    <string name="status_sms_via_notifications">SMS permission is not granted, so texts are read through your messaging app\'s notifications instead. Replies go through the app too.</string>
+    <string name="status_sms_unavailable">SMS permission is not granted. Either grant it below, or turn on notification access so texts are read through your messaging app\'s notifications.</string>
+
+    <!-- Notification actions -->
+    <string name="action_enable_voice">Enable voice replies</string>
+    <string name="action_pause">Pause 30 min</string>
+    <string name="action_resume">Resume</string>
+    <string name="action_reply_last">Reply to last</string>
+    <string name="action_stop">Stop</string>
+    <string name="missed_title">Message from %1$s</string>
+    <string name="missed_text">xText could not start in the background. Tap to start it and read new messages.</string>
+
+    <!-- Buttons -->
+    <string name="btn_start">Start xText</string>
+    <string name="btn_stop">Stop xText</string>
+    <string name="btn_test">Try it with a sample message</string>
+    <string name="btn_clear_log">Clear</string>
+    <string name="btn_save">Save</string>
+    <string name="btn_add">Add</string>
+    <string name="btn_grant">Grant</string>
+
+    <!-- Sections -->
+    <string name="section_permissions">Permissions</string>
+    <string name="section_reading">What to read</string>
+    <string name="section_quiet">Quiet hours</string>
+    <string name="section_voice">Voice</string>
+    <string name="section_apps">Messaging apps to read</string>
+    <string name="section_blocked">Blocked senders</string>
+    <string name="section_commands">Voice commands</string>
+    <string name="section_log">Activity</string>
+
+    <!-- Permissions -->
+    <string name="perm_sms">Receive and send SMS directly (optional with notification access)</string>
+    <string name="perm_mic">Microphone (voice replies)</string>
+    <string name="perm_contacts">Contacts (say names instead of numbers)</string>
+    <string name="perm_notifications">Show notifications</string>
+    <string name="perm_listener">Notification access (WhatsApp, Telegram, RCS…)</string>
+    <string name="perm_battery">Ignore battery optimisation (stay running)</string>
+    <string name="perm_call">Phone (call back by voice)</string>
+    <string name="perm_granted">OK</string>
+    <string name="perm_missing">Needed</string>
+
+    <!-- Reading settings -->
+    <string name="pref_read_sms">Read SMS text messages</string>
+    <string name="pref_read_apps">Read messages from other apps</string>
+    <string name="pref_read_content">Read the message text (off: announce the sender only)</string>
+    <string name="pref_contact_names">Say contact names instead of numbers</string>
+    <string name="pref_contacts_only">Only read SMS from people in my contacts</string>
+    <string name="pref_announce_app">Announce which app the message came from</string>
+    <string name="pref_read_mode">When to read messages</string>
+    <string name="read_mode_always">Always</string>
+    <string name="read_mode_screen_off">Only when the screen is off</string>
+    <string name="read_mode_headset">Only with headphones, Bluetooth or in a car</string>
+    <string name="max_chars">Read up to %1$d characters per message</string>
+
+    <!-- Quiet hours -->
+    <string name="pref_quiet">Don\'t read messages during quiet hours</string>
+    <string name="quiet_from">From %1$s</string>
+    <string name="quiet_until">Until %1$s</string>
+
+    <!-- Voice settings -->
+    <string name="speech_rate">Speech rate: %1$.1fx</string>
+    <string name="pref_voice_replies">Ask for a voice reply after each message</string>
+    <string name="pref_confirm">Read my reply back and ask before sending</string>
+    <string name="pref_on_device">Prefer on-device speech recognition (faster, private)</string>
+    <string name="pref_bt_mic">Use the Bluetooth headset or car microphone</string>
+    <string name="pref_call_back">Allow \"call back\" by voice</string>
+
+    <!-- Apps -->
+    <string name="app_not_installed">%1$s (not installed)</string>
+    <string name="hint_extra_package">Other app package name, e.g. com.example.chat</string>
+    <string name="hint_blocked">Names or numbers, separated by commas</string>
+    <string name="blocked_help">Messages whose sender matches any of these are never read aloud.</string>
+
+    <!-- Voice command help -->
+    <string name="commands_help">After a message is read, say:\n• \"Reply\" – then dictate your answer\n• \"Reply saying I\'m on my way\" – reply in one go\n• \"Repeat\" – hear the message again\n• \"Read more\" – hear a long message in full\n• \"Call back\" – phone the sender (if enabled)\n• \"Ignore\" or stay silent – move on\n• \"Stop\" – stop reading for now\n\nWhen your reply is read back, say \"Send\", \"Change\" or \"Cancel\".</string>
+
+    <!-- Log -->
+    <string name="log_empty">Nothing yet. Start xText and send yourself a text to see it in action.</string>
+
+    <!-- Dialogs / toasts -->
+    <string name="dialog_listener_title">Read WhatsApp, Telegram and RCS too?</string>
+    <string name="dialog_listener_text">To read messages from other messaging apps, xText needs notification access. Turn on xText in the next screen.</string>
+    <string name="dialog_open_settings">Open settings</string>
+    <string name="dialog_denied_title">Android blocked the permission</string>
+    <string name="dialog_denied_text">Android is no longer showing the permission prompt. You can grant it on the app\'s settings page under Permissions.</string>
+    <string name="dialog_denied_sms_text">Android did not show the SMS prompt. On this phone the SMS permission may only be grantable from the app\'s settings page (Permissions > SMS), and on some installs it cannot be granted at all. In that case turn on notification access instead: xText then reads your texts from the messaging app\'s notifications and replies through it.</string>
+    <string name="dialog_open_app_settings">Open app settings</string>
+    <string name="dialog_later">Later</string>
+    <string name="toast_start_first">Start xText first.</string>
+    <string name="toast_test_started">Listen… a sample message is on its way.</string>
+    <string name="toast_saved">Saved.</string>
+    <string name="toast_bad_package">Enter a package name such as com.example.app</string>
+    <string name="toast_open_settings_failed">Could not open system settings on this device.</string>
+
+    <!-- Spoken text -->
+    <string name="label_sms">SMS</string>
+    <string name="say_intro_plain">Message from %1$s: %2$s</string>
+    <string name="say_intro_group_plain">Message in %1$s from %2$s: %3$s</string>
+    <string name="say_intro_app">%1$s message from %2$s: %3$s</string>
+    <string name="say_intro_group">%1$s message in %2$s from %3$s: %4$s</string>
+    <string name="say_sender_only">New %1$s message from %2$s.</string>
+    <string name="say_body_truncated">%1$s… and more.</string>
+    <string name="say_prompt">Reply, repeat, or ignore?</string>
+    <string name="say_prompt_call">Reply, repeat, call back, or ignore?</string>
+    <string name="say_prompt_call_only">Call back, repeat, or ignore?</string>
+    <string name="say_prompt_more">Read more, repeat, or ignore?</string>
+    <string name="say_help_command">Say reply, repeat, or ignore.</string>
+    <string name="say_go_ahead">Go ahead with your reply.</string>
+    <string name="say_didnt_catch">I didn\'t catch that. What\'s your reply?</string>
+    <string name="say_confirm">Your reply: %1$s. Send it?</string>
+    <string name="say_help_confirm">Say send, change, or cancel.</string>
+    <string name="say_sent">Sent.</string>
+    <string name="say_send_failed">Sorry, I couldn\'t send that.</string>
+    <string name="say_cancelled">Okay, cancelled.</string>
+    <string name="say_no_reply">No reply sent.</string>
+    <string name="say_stopped">Okay, stopping.</string>
+    <string name="say_cant_reply">I can\'t reply to this one.</string>
+    <string name="say_cant_call">There is no number to call for this message.</string>
+    <string name="say_call_disabled">Calling back is turned off in settings.</string>
+    <string name="say_calling">Calling %1$s.</string>
+    <string name="say_call_failed">Sorry, I couldn\'t place the call.</string>
+
+    <!-- Sample message -->
+    <string name="test_sender">Alex</string>
+    <string name="test_body">Hey, are we still on for dinner tonight at 7?</string>
+</resources>
